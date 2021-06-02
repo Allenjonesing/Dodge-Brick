@@ -338,7 +338,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: e5fc74f855996aa4b8b9d3917dc23ae3, type: 2}
+  - {fileID: 2100000, guid: 0b5547c56bef1aa44a2c9d0b08ad45af, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -772,7 +772,7 @@ MonoBehaviour:
   voiceDetection: 0
   voiceDetectionThreshold: 0.01
   voiceDetectionDelayMs: 500
-  unityMicrophoneDevice: "Interface audionum\xE9rique (Line 6 UX2)"
+  unityMicrophoneDevice: Headset Microphone (Oculus Virtual Audio Device)
   photonMicrophoneDeviceId: 0
   interestGroup: 0
   debugEchoMode: 0
@@ -915,7 +915,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: e5fc74f855996aa4b8b9d3917dc23ae3, type: 2}
+  - {fileID: 2100000, guid: 0d36855b6ab868c4b8438daaba143fb8, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -952,8 +952,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1185421709}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 8.0891, y: 8.0891, z: 8.0891}
+  m_LocalPosition: {x: 0.05, y: 0, z: 1.21}
+  m_LocalScale: {x: 8.0891, y: 8.0891, z: 4.4923625}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 3
@@ -1012,7 +1012,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: e5fc74f855996aa4b8b9d3917dc23ae3, type: 2}
+  - {fileID: 2100000, guid: 9e62f87d986dd0f4596f57010529eb9e, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1050,7 +1050,7 @@ Transform:
   m_GameObject: {fileID: 2065727771}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.982, z: 1.103}
-  m_LocalScale: {x: 0.083079, y: 0.083079, z: 0.083079}
+  m_LocalScale: {x: 0.17315325, y: 0.049963597, z: 0.08134099}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 6
