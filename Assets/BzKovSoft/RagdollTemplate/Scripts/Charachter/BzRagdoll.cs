@@ -37,8 +37,10 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
         Vector3 _storedHipsPositionPrivAnim;
         Vector3 _storedHipsPositionPrivBlend;
         public bool isRagDollingFromBeingShot;
+        public int shotCooldownMegaMax;
         public int shotCooldownMax;
         public int shotCooldown;
+        public GameObject originalParent;
 
         #region implementation of IBzRagdoll
 
@@ -154,6 +156,7 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
 
         public void DeactivateMe()
         {
+            gameObject.transform.parent = originalParent.transform;
             gameObject.transform.parent.gameObject.transform.position = gameObject.transform.position;
             gameObject.transform.position = new Vector3(); ;
             gameObject.SetActive(false);
@@ -170,10 +173,19 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
             if (isHeadHit || (!isRagDollingFromBeingShot
                 && _state == RagdollState.Animated))
             {
+                gameObject.transform.parent = null;
                 RagdollIn();
                 isRagDollingFromBeingShot = true;
                 shotCooldown += isHeadHit ? shotCooldownMax * 5 : shotCooldownMax;
-                shotCooldownMax += isHeadHit ? 500 : 100;
+                shotCooldownMax += isHeadHit ? 200 : 100;
+                if (shotCooldown > shotCooldownMegaMax)
+                {
+                    shotCooldown = shotCooldownMegaMax;
+                }
+                if (shotCooldownMax > shotCooldownMegaMax)
+                {
+                    shotCooldownMax = shotCooldownMegaMax;
+                }
             }
         }
 
