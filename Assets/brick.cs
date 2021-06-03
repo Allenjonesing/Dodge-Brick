@@ -26,7 +26,8 @@ public class brick : MonoBehaviour
         if (gameObject != null && collision.collider.tag == "Player")
         {
             ContactPoint contact = collision.contacts[0];
-            Instantiate(bloodParticle, contact.point, Quaternion.identity);
+            var blood = Instantiate(bloodParticle, contact.point, Quaternion.identity);
+            blood.transform.parent = collision.gameObject.transform;
             var ragdoll = collision.gameObject.GetComponent<BzRagdoll>();
             if (ragdoll != null)
             {

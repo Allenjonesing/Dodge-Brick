@@ -37,8 +37,8 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
 		Vector3 _storedHipsPositionPrivAnim;
 		Vector3 _storedHipsPositionPrivBlend;
 		bool isRagDollingFromBeingShot;
-		public int ragDollFromBeingShotCooldownMax;
-		public int ragDollFromBeingShotCooldown;
+		public int shotCooldownMax;
+		public int shotCooldown;
 
 		#region implementation of IBzRagdoll
 
@@ -131,17 +131,14 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
 
 			if (isRagDollingFromBeingShot)
 			{
-				// kill and resuscitate will force character to enter in Ragdoll 
-				isRagDollingFromBeingShot = false;
-				RagdollIn();
-				RagdollOut();
-				if (ragDollFromBeingShotCooldown <= 0)
+				if (shotCooldown <= 0)
 				{
 					isRagDollingFromBeingShot = false;
+					RagdollOut();
 				}
 				else
 				{
-					ragDollFromBeingShotCooldown--;
+					shotCooldown--;
 				}
 			}
 
@@ -159,8 +156,10 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
 			if (!isRagDollingFromBeingShot
 				&& _state == RagdollState.Animated)
 			{
+				RagdollIn();
 				isRagDollingFromBeingShot = true;
-				ragDollFromBeingShotCooldown = ragDollFromBeingShotCooldownMax;
+				shotCooldown = shotCooldownMax;
+				shotCooldownMax += 100;
 			}
 		}
 

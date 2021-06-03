@@ -28,6 +28,8 @@ public class NetworkManager : MonoBehaviourPunCallbacks
         Debug.Log("Connected To Server.");
         base.OnConnectedToMaster();
         PhotonNetwork.JoinLobby();
+        PlayerPrefs.SetInt("AvatarID", 0);
+        InitiliazeRoom(0);
     }
 
     public override void OnJoinedLobby()
