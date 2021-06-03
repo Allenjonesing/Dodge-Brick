@@ -21,6 +21,8 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     {
         PhotonNetwork.ConnectUsingSettings();
         Debug.Log("Try Connect To Server...");
+        PlayerPrefs.SetInt("AvatarID", 0);
+        InitiliazeRoom(0);
     }
 
     public override void OnConnectedToMaster()
