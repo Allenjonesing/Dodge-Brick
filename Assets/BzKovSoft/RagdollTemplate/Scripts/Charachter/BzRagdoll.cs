@@ -173,7 +173,11 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
             if (isHeadHit || (!isRagDollingFromBeingShot
                 && _state == RagdollState.Animated))
             {
-                gameObject.transform.parent = null;
+                if (gameObject.transform.parent != null)
+                {
+                    gameObject.transform.position = gameObject.transform.parent.transform.position;
+                    gameObject.transform.parent = null;
+                }
                 RagdollIn();
                 isRagDollingFromBeingShot = true;
                 shotCooldown += isHeadHit ? shotCooldownMax * 5 : shotCooldownMax;
