@@ -31,7 +31,7 @@ public class brick : MonoBehaviour
             var ragdoll = collision.gameObject.GetComponent<BzRagdoll>();
             if (ragdoll != null)
             {
-                ragdoll.BulletCollisionDetected();
+                ragdoll.BrickCollisionDetected();
             }
         }
     }
