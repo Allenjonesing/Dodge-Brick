@@ -26,8 +26,6 @@ public class NetworkPlayer : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        transform.position = new Vector3(Random.Range(-10.0f, 10.0f), 0, Random.Range(-7.0f, 9.0f));
-
         photonView = GetComponent<PhotonView>();
 
         XRRig rig = FindObjectOfType<XRRig>();
