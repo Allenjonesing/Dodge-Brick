@@ -9,7 +9,6 @@
     package="com.JonesingStudio.DodgeBrick"
     platformBuildVersionCode="29"
     platformBuildVersionName="10"
-	android:excludeFromRecents="true"
 	android:taskAffinity=""
 	android:launchMode="singleInstance">
 
@@ -63,7 +62,8 @@
             android:launchMode="2"
             android:screenOrientation="0"
             android:configChanges="0x7f0"
-            android:hardwareAccelerated="false">
+            android:hardwareAccelerated="false"
+	        android:excludeFromRecents="true">
 
 			<intent-filter>
 
@@ -110,5 +110,7 @@
 		<meta-data
             android:name="com.samsung.android.vr.application.mode"
             android:value="vr_only" />
+
+		<meta-data android:name="com.oculus.vr.focusaware" android:value="true" />
 	</application>
 </manifest>
