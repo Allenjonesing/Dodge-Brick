@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="1" android:versionName="1.9" android:installLocation="auto" android:compileSdkVersion="29" android:compileSdkVersionCodename="10" package="com.unity3d.player" platformBuildVersionCode="29" platformBuildVersionName="10" android:excludeFromRecents="true" android:taskAffinity="" android:launchMode="singleInstance">
+  <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="29" />
+  <uses-feature android:glEsVersion="0x20000" />
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+  <uses-permission android:name="android.permission.BLUETOOTH" />
+  <uses-feature android:name="android.hardware.microphone" android:required="false" />
+  <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+  <uses-feature android:name="android.hardware.touchscreen.multitouch" android:required="false" />
+  <uses-feature android:name="android.hardware.touchscreen.multitouch.distinct" android:required="false" />
+  <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" android:version="1" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <application>
+    <activity android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" android:name="com.unity3d.player.UnityPlayerActivity" android:screenOrientation="landscape" android:launchMode="singleTask" android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|uiMode" android:hardwareAccelerated="false">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+      <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+      <meta-data android:name="android.notch_support" android:value="true" />
+      <meta-data android:name="android.notch_support" android:value="true" />
+    </activity>
+    <meta-data android:name="unity.tango-enable" android:value="true" />
+    <meta-data android:name="unityplayer.SkipPermissionsDialog" android:value="true" />
+    <meta-data android:name="unity.splash-mode" android:value="0" />
+    <meta-data android:name="unity.splash-enable" android:value="false" />
+    <meta-data android:name="notch.config" android:value="portrait|landscape" />
+    <meta-data android:name="unity.build-id" android:value="0983290b-3e22-44d6-8b54-3ab5e90b107c" />
+    <meta-data android:name="com.samsung.android.vr.application.mode" android:value="vr_only" />
+  </application>
+  <uses-permission android:name="android.permission.CAMERA" />
+</manifest>
