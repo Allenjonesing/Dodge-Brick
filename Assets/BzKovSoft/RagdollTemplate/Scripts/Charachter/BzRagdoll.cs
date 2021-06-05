@@ -40,7 +40,10 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
         public int shotCooldownMegaMax;
         public int shotCooldownMax;
         public int shotCooldown;
-        public GameObject originalParent;
+        public GameObject playerBodyAvatar;
+        public GameObject playersRealAvatar;
+        public GameObject playersXRRig;
+
 
         #region implementation of IBzRagdoll
 
@@ -156,9 +159,19 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
 
         public void DeactivateMe()
         {
-            gameObject.transform.parent = originalParent.transform;
-            gameObject.transform.parent.gameObject.transform.position = gameObject.transform.position;
-            gameObject.transform.position = new Vector3(); ;
+            // Get our body's last position
+            var positionToWarpTo = gameObject.transform.position;
+            // Set the ragdoll's parent back to the [playerBodyAvatar]
+            gameObject.transform.parent = playerBodyAvatar.transform;
+            // Reset the true avatar's (playersRealAvatar) transform to bring us back to our parent location
+            playersRealAvatar.transform.position = positionToWarpTo;
+            // Set the rig's (playersXRRig) position to ours, plus some height
+            playersXRRig.transform.position = positionToWarpTo;
+            // Reset the parent's (playerBodyAvatar) position to be the parents
+            playerBodyAvatar.transform.position = positionToWarpTo;
+            // Reset our transform to bring us back to our parent location
+            gameObject.transform.position = positionToWarpTo;
+            // Vanish since we're concious
             gameObject.SetActive(false);
         }
 

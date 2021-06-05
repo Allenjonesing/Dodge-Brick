@@ -36,6 +36,8 @@ public class ContinuousMovement : MonoBehaviour
 
         // Move our position a step closer to the target.
         float step = speed * Time.fixedDeltaTime; // calculate distance to move
-        transform.position = Vector3.MoveTowards(transform.position, transform.position + direction, step);
+        var nextLocation = transform.position + direction;
+        
+        transform.position = Vector3.MoveTowards(transform.position, nextLocation, step);
     }
 }
