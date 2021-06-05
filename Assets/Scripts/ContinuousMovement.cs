@@ -6,7 +6,7 @@ using UnityEngine.XR.Interaction.Toolkit;
 
 public class ContinuousMovement : MonoBehaviour
 {
-    public float speed = 1; 
+    public float speed = 1;
     public XRNode inputSource;
     public float gravity = -9.81f;
     public LayerMask groundLayer;
@@ -37,7 +37,10 @@ public class ContinuousMovement : MonoBehaviour
         // Move our position a step closer to the target.
         float step = speed * Time.fixedDeltaTime; // calculate distance to move
         var nextLocation = transform.position + direction;
-        
-        transform.position = Vector3.MoveTowards(transform.position, nextLocation, step);
+
+        if (!Physics.CheckSphere(new Vector3(nextLocation.x,0, nextLocation.z), 0.1f, 1 << 12))
+        {
+            transform.position = Vector3.MoveTowards(transform.position, nextLocation, step);
+        }
     }
 }
