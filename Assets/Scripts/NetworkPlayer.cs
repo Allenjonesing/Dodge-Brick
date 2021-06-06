@@ -26,13 +26,16 @@ public class NetworkPlayer : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        // We've just been created at the NetworkManager's position.
         photonView = GetComponent<PhotonView>();
 
+        // Find the XR Rig in the scene, as well as the specific VR devices
         XRRig rig = FindObjectOfType<XRRig>();
         headRig = rig.transform.Find("Camera Offset/Main Camera");
         leftHandRig = rig.transform.Find("Camera Offset/LeftHand Controller");
         rightHandRig = rig.transform.Find("Camera Offset/RightHand Controller");
 
+        // For our own avatar only, we'll load it in
         if(photonView.IsMine)
             photonView.RPC("LoadAvatar", RpcTarget.AllBuffered, PlayerPrefs.GetInt("AvatarID"));
     }
@@ -41,16 +44,20 @@ public class NetworkPlayer : MonoBehaviour
     [PunRPC]
     public void LoadAvatar(int index)
     {
+        // Restart fresh (If needed, in order to change the selected avatar)
         if (spawnedAvatar)
             Destroy(spawnedAvatar);
 
+        // Select the correct avatar and init it here
         spawnedAvatar = Instantiate(avatars[index], transform);
         AvatarInfo avatarInfo = spawnedAvatar.GetComponent<AvatarInfo>();
 
+        // Set correct parents for position tracking
         avatarInfo.head.SetParent(head, false);
         avatarInfo.leftHand.SetParent(leftHand, false);
         avatarInfo.rightHand.SetParent(rightHand, false);
 
+        // Apply hand animators
         leftHandAnimator = avatarInfo.leftHandAnimator;
         rightHandAnimator = avatarInfo.rightHandAnimator;
     }

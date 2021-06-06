@@ -11,8 +11,10 @@ public class NetworkPlayerSpawner : MonoBehaviourPunCallbacks
 
     public override void OnJoinedRoom()
     {
+        // When the network player joins, we create their [spawnedPlayerPrefab] at the transform.position.
         debugText.GetComponent<TextMesh>().text = "A Player Joined The Room!";
         base.OnJoinedRoom();
+        // [spawnedPlayerPrefab] will have it's own bit of startup code
         spawnedPlayerPrefab = PhotonNetwork.Instantiate("Network Player", transform.position, transform.rotation);
     }
 

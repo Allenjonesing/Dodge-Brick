@@ -205,6 +205,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: Character Avatar 1
       objectReference: {fileID: 0}
+    - target: {fileID: 8299833458999817712, guid: 273d69c573a58cc49866edb663dbbf85,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8721629793704338501, guid: 273d69c573a58cc49866edb663dbbf85,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -260,7 +265,9 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 8915572670044473812, guid: 273d69c573a58cc49866edb663dbbf85, type: 3}
+    - {fileID: 946488125261120936, guid: 273d69c573a58cc49866edb663dbbf85, type: 3}
   m_SourcePrefab: {fileID: 100100000, guid: 273d69c573a58cc49866edb663dbbf85, type: 3}
 --- !u!4 &8143049577443501293 stripped
 Transform:

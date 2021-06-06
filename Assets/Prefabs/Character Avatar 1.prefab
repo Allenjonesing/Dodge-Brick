@@ -2293,14 +2293,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8721629793704338501}
-  - component: {fileID: 690513651412129923}
-  - component: {fileID: 8299833458999817712}
-  - component: {fileID: 8915572670044473812}
-  - component: {fileID: 946488125261120936}
-  - component: {fileID: 3411770686415908394}
-  - component: {fileID: 4410262678723725263}
   - component: {fileID: 3029341669189543845}
   - component: {fileID: 3029341669189543844}
+  - component: {fileID: 8822199797842946906}
   m_Layer: 0
   m_Name: Character Avatar 1
   m_TagString: Player
@@ -2326,185 +2321,6 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &690513651412129923
-Animator:
-  serializedVersion: 3
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8233324187801206527}
-  m_Enabled: 1
-  m_Avatar: {fileID: 9000000, guid: 7a1b92fedcfe43f4c8f05bda07db92f5, type: 3}
-  m_Controller: {fileID: 9100000, guid: 0da9780e0e4e3254c86e03ba03f1c611, type: 2}
-  m_CullingMode: 0
-  m_UpdateMode: 1
-  m_ApplyRootMotion: 0
-  m_LinearVelocityBlending: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorControllerStateOnDisable: 0
---- !u!114 &8299833458999817712
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8233324187801206527}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b2d8418b0b9634b1892b0268dd9c2743, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  boneShape: 1
-  drawBones: 1
-  drawTripods: 0
-  boneSize: 1
-  tripodSize: 1
-  boneColor: {r: 0, g: 0, b: 1, a: 0.5}
-  m_Transforms:
-  - {fileID: 3850970182255581659}
-  - {fileID: 8761930137834801680}
-  - {fileID: 1200785840991027369}
-  - {fileID: 4561561868864725015}
-  - {fileID: 8663605055668379448}
-  - {fileID: 7406333153973047348}
-  - {fileID: 9184874677212728766}
-  - {fileID: 6516232606078465013}
-  - {fileID: 9035508466234101988}
-  - {fileID: 4893840545205019676}
-  - {fileID: 4221435313047659019}
-  - {fileID: 8116433722916549874}
-  - {fileID: 8882351662509832322}
-  - {fileID: 2281900079682145691}
-  - {fileID: 2009659857204086971}
-  - {fileID: 1598638864191052357}
-  - {fileID: 7671080679054372315}
-  - {fileID: 1544833078260092088}
-  - {fileID: 7863492048114516137}
-  - {fileID: 1527761326350538879}
-  - {fileID: 4045272046592150842}
-  - {fileID: 4195456207718393880}
-  - {fileID: 1104653335801129419}
-  - {fileID: 3646518609083880648}
-  - {fileID: 2874780151615706748}
-  - {fileID: 1318065399648589726}
-  - {fileID: 7973417145177604374}
-  - {fileID: 4994060388116603743}
-  - {fileID: 9192704921089691048}
-  - {fileID: 7109508883875356612}
-  - {fileID: 7163304837170054116}
-  - {fileID: 91289088946487415}
-  - {fileID: 6474265879448204243}
-  - {fileID: 5456977766664514063}
-  - {fileID: 6015530760398503161}
-  - {fileID: 8991473451528710690}
-  - {fileID: 3370693124535462160}
-  - {fileID: 6928277081715330406}
-  - {fileID: 7584352688103728944}
-  - {fileID: 1453885453015630223}
-  - {fileID: 4286669529494245065}
-  - {fileID: 4372416521781222942}
-  - {fileID: 319839174511284853}
-  - {fileID: 6369407820062103008}
-  - {fileID: 2477385425664669490}
-  - {fileID: 5371049428157570897}
-  - {fileID: 9099836606286760738}
-  - {fileID: 7571855304784711022}
-  - {fileID: 1755171362725290368}
-  - {fileID: 5881924085236922392}
-  - {fileID: 3152192547807726326}
-  - {fileID: 7321325290433010348}
-  - {fileID: 4551760029299637874}
-  - {fileID: 5159566366122395883}
-  - {fileID: 6180966648737550917}
-  - {fileID: 6205486380256330296}
-  - {fileID: 8930200432362284067}
-  - {fileID: 6164346696609480359}
-  - {fileID: 6610483644844022889}
-  - {fileID: 9168391340447963866}
-  - {fileID: 1864122373070102860}
-  - {fileID: 1228686564619142279}
-  - {fileID: 7109748737663888748}
-  - {fileID: 2765241881398111144}
-  - {fileID: 664117556641639133}
---- !u!114 &8915572670044473812
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8233324187801206527}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0d4add0b53a5b534eac944ef2b1a01ad, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  root: {fileID: 8721629793704338501}
-  turnSmoothness: 0.2
-  head:
-    vrTarget: {fileID: 0}
-    rigTarget: {fileID: 8306358633955089784}
-    trackingPositionOffset: {x: 0, y: -0.12, z: -0.21}
-    trackingRotationOffset: {x: 0, y: 0, z: 0}
-  leftHand:
-    vrTarget: {fileID: 0}
-    rigTarget: {fileID: 800053589158393495}
-    trackingPositionOffset: {x: 0, y: 0.03, z: -0.09}
-    trackingRotationOffset: {x: -223.26, y: -72.8, z: -71.9}
-  rightHand:
-    vrTarget: {fileID: 0}
-    rigTarget: {fileID: 8550918582133232688}
-    trackingPositionOffset: {x: 0, y: 0, z: 0}
-    trackingRotationOffset: {x: -380.7, y: -88.3, z: -122.2}
---- !u!114 &946488125261120936
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8233324187801206527}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 58c68e0954e2cc7428d4eae4973ceca9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  footOffset: {x: 0, y: 0.1, z: 0}
-  rightFootPosWeight: 1
-  rightFootRotWeight: 1
-  leftFootPosWeight: 1
-  leftFootRotWeight: 1
---- !u!114 &3411770686415908394
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8233324187801206527}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fff0960ef4ea6e04eac66b4a7fd2189d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_RigLayers:
-  - rig: {fileID: 3667606934850190899}
-    active: 1
-  m_Effectors: []
---- !u!114 &4410262678723725263
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8233324187801206527}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2f77017b70957454c87af1bd7ea13f60, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  speedTreshold: 0.2
-  smoothing: 0.1
 --- !u!136 &3029341669189543845
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2532,6 +2348,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ragDowllToASpawn: {fileID: 3029341670062195252}
+--- !u!114 &8822199797842946906
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8233324187801206527}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f00ad1ad6917787419247f66e5efabbd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  head: {fileID: 8306358633955089784}
+  leftHand: {fileID: 0}
+  rightHand: {fileID: 0}
+  leftHandAnimator: {fileID: 0}
+  rightHandAnimator: {fileID: 0}
 --- !u!1 &8565612810914471200
 GameObject:
   m_ObjectHideFlags: 0

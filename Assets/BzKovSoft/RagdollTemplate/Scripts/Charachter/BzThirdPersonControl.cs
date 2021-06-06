@@ -27,37 +27,29 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
 
 		void Update()
 		{
-			// read user input: jump, fire and crouch
-
-			if (!_jumpPressed)
-				_jumpPressed = Input.GetButtonDown("Jump");
-			if (!_fire)
-				_fire = Input.GetMouseButtonDown(0);
-
-			_crouch = Input.GetKey(KeyCode.C);
 		}
 
 		private void FixedUpdate()
 		{
-			// read user input: movement
-			float h = Input.GetAxis("Horizontal");
-			float v = Input.GetAxis("Vertical");
+			//// read user input: movement
+			//float h = Input.GetAxis("Horizontal");
+			//float v = Input.GetAxis("Vertical");
 			
-			// calculate move direction and magnitude to pass to character
-			Vector3 camForward = new Vector3(_camTransform.forward.x, 0, _camTransform.forward.z).normalized;
-			Vector3 move = v * camForward + h * _camTransform.right;
-			if (move.magnitude > 1)
-				move.Normalize();
+			//// calculate move direction and magnitude to pass to character
+			//Vector3 camForward = new Vector3(_camTransform.forward.x, 0, _camTransform.forward.z).normalized;
+			//Vector3 move = v * camForward + h * _camTransform.right;
+			//if (move.magnitude > 1)
+			//	move.Normalize();
 
-			ProcessDamage();
+			//ProcessDamage();
 
-			// pass all parameters to the character control script
-			_character.Move(move, _crouch, _jumpPressed);
-			_jumpPressed = false;
+			//// pass all parameters to the character control script
+			//_character.Move(move, _crouch, _jumpPressed);
+			//_jumpPressed = false;
 
 			// if ragdolled, add a little move
-			if (_ragdoll != null && _ragdoll.IsRagdolled)
-				_ragdoll.AddExtraMove(move * 100 * Time.deltaTime);
+			//if (_ragdoll != null && _ragdoll.IsRagdolled)
+			//	_ragdoll.AddExtraMove(move * 100 * Time.deltaTime);
 		}
 
         /// <summary>
