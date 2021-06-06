@@ -3,6 +3,9 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
 using System.Diagnostics;
+using UnityEngine.XR;
+using UnityEngine.XR.Interaction.Toolkit;
+
 
 namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
 {
@@ -96,6 +99,9 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
 
         void Start()
         {
+            // Find the XR Rig in the scene, as well as the specific VR devices
+            playersXRRig = FindObjectOfType<XRRig>().gameObject;
+
             _anim = GetComponent<Animator>();
             _hipsTransform = _anim.GetBoneTransform(HumanBodyBones.Hips);
             _hipsTransformRigid = _hipsTransform.GetComponent<Rigidbody>();
