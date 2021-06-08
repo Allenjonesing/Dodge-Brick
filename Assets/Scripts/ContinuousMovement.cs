@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
+using Photon.Pun;
 
 public class ContinuousMovement : MonoBehaviour
 {
@@ -15,11 +16,13 @@ public class ContinuousMovement : MonoBehaviour
     private float fallingSpeed;
     private XRRig rig;
     private Vector2 inputAxis;
+    private PhotonView photonView;
 
     // Start is called before the first frame update
     void Start()
     {
         rig = GetComponent<XRRig>();
+        photonView = GetComponent<PhotonView>();
     }
 
     // Update is called once per frame
@@ -31,16 +34,20 @@ public class ContinuousMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
-        Quaternion headYaw = Quaternion.Euler(0, rig.cameraGameObject.transform.eulerAngles.y, 0);
-        Vector3 direction = headYaw * new Vector3(inputAxis.x, 0, inputAxis.y);
-
-        // Move our position a step closer to the target.
-        float step = speed * Time.fixedDeltaTime; // calculate distance to move
-        var nextLocation = transform.position + direction;
-
-        if (!Physics.CheckSphere(new Vector3(nextLocation.x,0, nextLocation.z), 0.1f, 1 << 12))
+        if (photonView.IsMine)
         {
-            transform.position = Vector3.MoveTowards(transform.position, nextLocation, step);
+            Quaternion headYaw = Quaternion.Euler(0, rig.cameraGameObject.transform.eulerAngles.y, 0);
+            Vector3 direction = headYaw * new Vector3(inputAxis.x, 0, inputAxis.y);
+
+            // Move our position a step closer to the target.
+            float step = speed * Time.fixedDeltaTime; // calculate distance to move
+            var nextLocation = transform.position + direction;
+            var nextLocationToCheck = transform.position + direction / 2;
+
+            if (!Physics.CheckSphere(new Vector3(nextLocationToCheck.x, 0, nextLocationToCheck.z), 0.1f, 1 << 12))
+            {
+                transform.position = Vector3.MoveTowards(transform.position, nextLocation, step);
+            }
         }
     }
 }

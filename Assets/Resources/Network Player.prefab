@@ -294,6 +294,7 @@ GameObject:
   - component: {fileID: -4704135063627996492}
   - component: {fileID: 9039477097873312434}
   - component: {fileID: 6278667660107087614}
+  - component: {fileID: 7034445657084519729}
   m_Layer: 0
   m_Name: Network Player
   m_TagString: Untagged
@@ -385,3 +386,22 @@ MonoBehaviour:
   AutoCreateRecorderIfNotFound: 0
   UsePrimaryRecorder: 1
   SetupDebugSpeaker: 0
+--- !u!114 &7034445657084519729
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8517690579278211676}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e811e4ae9adb6fe43b2a8afadc32fd59, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  speed: 2
+  inputSource: 4
+  gravity: -9.81
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  additionalHeight: 0.2

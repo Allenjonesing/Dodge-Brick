@@ -101,6 +101,7 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
         {
             // Find the XR Rig in the scene, as well as the specific VR devices
             playersXRRig = FindObjectOfType<XRRig>().gameObject;
+            gameObject.transform.position = playersXRRig.transform.position;
 
             _anim = GetComponent<Animator>();
             _hipsTransform = _anim.GetBoneTransform(HumanBodyBones.Hips);
@@ -130,6 +131,9 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
                 var trComp = new TransformComponent(t);
                 _transforms.Add(trComp);
             }
+
+            // Vanish since we're concious
+            gameObject.SetActive(false);
         }
 
         void FixedUpdate()
@@ -146,7 +150,7 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
                 {
                     isRagDollingFromBeingShot = false;
                     RagdollOut();
-                    Invoke("DeactivateMe", 3.0f);
+                    Invoke("DeactivateMe", 5.0f);
                 }
                 else
                 {

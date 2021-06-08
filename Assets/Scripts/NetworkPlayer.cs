@@ -22,6 +22,7 @@ public class NetworkPlayer : MonoBehaviour
     private Transform leftHandRig;
     private Transform rightHandRig;
     private GameObject spawnedAvatar;
+    private XRRig rig;
 
     // Start is called before the first frame update
     void Start()
@@ -30,14 +31,16 @@ public class NetworkPlayer : MonoBehaviour
         photonView = GetComponent<PhotonView>();
 
         // Find the XR Rig in the scene, as well as the specific VR devices
-        XRRig rig = FindObjectOfType<XRRig>();
+        rig = FindObjectOfType<XRRig>();
         headRig = rig.transform.Find("Camera Offset/Main Camera");
         leftHandRig = rig.transform.Find("Camera Offset/LeftHand Controller");
         rightHandRig = rig.transform.Find("Camera Offset/RightHand Controller");
 
         // For our own avatar only, we'll load it in
-        if(photonView.IsMine)
+        if (photonView.IsMine)
+        {
             photonView.RPC("LoadAvatar", RpcTarget.AllBuffered, PlayerPrefs.GetInt("AvatarID"));
+        }
     }
 
     //Function that is responsible to load an avatar among the avatar list
@@ -49,7 +52,7 @@ public class NetworkPlayer : MonoBehaviour
             Destroy(spawnedAvatar);
 
         // Select the correct avatar and init it here
-        spawnedAvatar = Instantiate(avatars[index], transform);
+        spawnedAvatar = Instantiate(avatars[index], rig.gameObject.transform);
         AvatarInfo avatarInfo = spawnedAvatar.GetComponent<AvatarInfo>();
 
         // Set correct parents for position tracking
@@ -60,6 +63,9 @@ public class NetworkPlayer : MonoBehaviour
         // Apply hand animators
         leftHandAnimator = avatarInfo.leftHandAnimator;
         rightHandAnimator = avatarInfo.rightHandAnimator;
+
+        // Remove our own avatar cause it sucks
+        spawnedAvatar.transform.Find("CharacterBodyAvatar").GetComponent<SkinnedMeshRenderer>().enabled = false;
     }
 
     // Update is called once per frame

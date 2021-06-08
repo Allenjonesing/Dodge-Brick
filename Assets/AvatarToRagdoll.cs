@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using BzKovSoft.RagdollTemplate.Scripts.Charachter;
 
 public class AvatarToRagdoll : MonoBehaviour
 {
@@ -23,6 +24,12 @@ public class AvatarToRagdoll : MonoBehaviour
         if (gameObject != null && collision.tag == "Brick")
         {
             ragDowllToASpawn.SetActive(true);
+            var ragdoll = ragDowllToASpawn.GetComponent<BzRagdoll>();
+
+            if (ragdoll != null)
+            {
+                ragdoll.BrickCollisionDetected();
+            }
         }
     }
 

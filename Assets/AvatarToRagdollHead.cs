@@ -25,14 +25,12 @@ public class AvatarToRagdollHead : MonoBehaviour
         {
             ragDowllToASpawn.SetActive(true);
             var ragdoll = ragDowllToASpawn.GetComponent<BzRagdoll>();
-            Debug.Log(ragdoll);
             
             if (ragdoll != null)
             {
                 Debug.Log("Hit in Head!");
                 ragdoll.BrickCollisionDetected(true);
             }
-
         }
     }
 
