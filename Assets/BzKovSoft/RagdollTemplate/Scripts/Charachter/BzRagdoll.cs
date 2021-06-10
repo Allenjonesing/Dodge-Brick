@@ -5,6 +5,7 @@ using System.Collections;
 using System.Diagnostics;
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
+using Photon.Pun;
 
 
 namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
@@ -150,7 +151,7 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
                 {
                     isRagDollingFromBeingShot = false;
                     RagdollOut();
-                    Invoke("DeactivateMe", 5.0f);
+                    Invoke("DeactivateMe", 3.0f);
                 }
                 else
                 {
@@ -167,6 +168,13 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
             }
         }
 
+        [PunRPC]
+        public void MoveSelf(Vector3 positionToWarpTo)
+        {
+            // Set the rig's (playersXRRig) position to ours, plus some height
+            playersXRRig.transform.position = positionToWarpTo;
+        }
+
         public void DeactivateMe()
         {
             // Get our body's last position
@@ -175,8 +183,12 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
             gameObject.transform.parent = playerBodyAvatar.transform;
             // Reset the true avatar's (playersRealAvatar) transform to bring us back to our parent location
             playersRealAvatar.transform.position = positionToWarpTo;
-            // Set the rig's (playersXRRig) position to ours, plus some height
-            playersXRRig.transform.position = positionToWarpTo;
+            var networkPlayer = FindObjectOfType<NetworkPlayer>();
+            var photonView = networkPlayer.GetComponent<PhotonView>();
+            if (photonView.IsMine)
+            {
+                photonView.RPC("MoveSelf", RpcTarget.AllBuffered, positionToWarpTo);
+            }
             // Reset the parent's (playerBodyAvatar) position to be the parents
             playerBodyAvatar.transform.position = positionToWarpTo;
             // Reset our transform to bring us back to our parent location

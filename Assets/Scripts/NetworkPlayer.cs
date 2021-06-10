@@ -65,7 +65,7 @@ public class NetworkPlayer : MonoBehaviour
         rightHandAnimator = avatarInfo.rightHandAnimator;
 
         // Remove our own avatar cause it sucks
-        spawnedAvatar.transform.Find("CharacterBodyAvatar").GetComponent<SkinnedMeshRenderer>().enabled = false;
+        spawnedAvatar.transform.Find("Character Avatar").Find("CharacterBodyAvatar").GetComponent<SkinnedMeshRenderer>().enabled = false;
     }
 
     // Update is called once per frame

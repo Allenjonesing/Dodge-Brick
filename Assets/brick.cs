@@ -6,17 +6,18 @@ using BzKovSoft.RagdollTemplate.Scripts.Charachter;
 public class brick : MonoBehaviour
 {
     public GameObject bloodParticle;
+    private int bloodParticlesSwaned;
 
     // Start is called before the first frame update
     void Start()
     {
-        
+
     }
 
     // Update is called once per frame
     void Update()
     {
-        
+
     }
 
 
@@ -26,13 +27,23 @@ public class brick : MonoBehaviour
         if (gameObject != null && collision.collider.tag == "Player")
         {
             ContactPoint contact = collision.contacts[0];
-            var blood = Instantiate(bloodParticle, contact.point, Quaternion.identity);
-            blood.transform.parent = collision.gameObject.transform;
+            if (bloodParticlesSwaned < 5)
+            {
+                var blood = Instantiate(bloodParticle, contact.point, Quaternion.identity);
+                blood.transform.parent = collision.gameObject.transform;
+                bloodParticlesSwaned++;
+                Invoke("lowerBloodSpawnCount", 10.0f);
+            }
             var ragdoll = collision.gameObject.GetComponent<BzRagdoll>();
             if (ragdoll != null)
             {
                 ragdoll.BrickCollisionDetected();
             }
         }
+    }
+
+    void lowerBloodSpawnCount()
+    {
+        bloodParticlesSwaned--;
     }
 }
