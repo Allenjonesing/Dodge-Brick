@@ -22,7 +22,6 @@ public class NetworkPlayer : MonoBehaviour
     private Transform leftHandRig;
     private Transform rightHandRig;
     private GameObject spawnedAvatar;
-    private XRRig rig;
 
     // Start is called before the first frame update
     void Start()
@@ -31,7 +30,7 @@ public class NetworkPlayer : MonoBehaviour
         photonView = GetComponent<PhotonView>();
 
         // Find the XR Rig in the scene, as well as the specific VR devices
-        rig = FindObjectOfType<XRRig>();
+        XRRig rig = FindObjectOfType<XRRig>();
         headRig = rig.transform.Find("Camera Offset/Main Camera");
         leftHandRig = rig.transform.Find("Camera Offset/LeftHand Controller");
         rightHandRig = rig.transform.Find("Camera Offset/RightHand Controller");
@@ -39,20 +38,21 @@ public class NetworkPlayer : MonoBehaviour
         // For our own avatar only, we'll load it in
         if (photonView.IsMine)
         {
-            photonView.RPC("LoadAvatar", RpcTarget.AllBuffered, PlayerPrefs.GetInt("AvatarID"));
+            photonView.RPC("LoadAvatar", RpcTarget.AllBuffered, PlayerPrefs.GetInt("AvatarID"), rig);
         }
     }
 
     //Function that is responsible to load an avatar among the avatar list
     [PunRPC]
-    public void LoadAvatar(int index)
+    public void LoadAvatar(int index, XRRig rig)
     {
         // Restart fresh (If needed, in order to change the selected avatar)
         if (spawnedAvatar)
             Destroy(spawnedAvatar);
 
-        // Select the correct avatar and init it here
-        spawnedAvatar = Instantiate(avatars[index], rig.gameObject.transform);
+        // Select the correct avatar and init it where we want
+        // rig.gameObject.transform.position = 
+        spawnedAvatar = PhotonNetwork.Instantiate("Blue Avatar", rig.transform.position, rig.transform.rotation);
         AvatarInfo avatarInfo = spawnedAvatar.GetComponent<AvatarInfo>();
 
         // Set correct parents for position tracking
@@ -65,7 +65,7 @@ public class NetworkPlayer : MonoBehaviour
         rightHandAnimator = avatarInfo.rightHandAnimator;
 
         // Remove our own avatar cause it sucks
-        spawnedAvatar.transform.Find("Character Avatar").Find("CharacterBodyAvatar").GetComponent<SkinnedMeshRenderer>().enabled = false;
+        // spawnedAvatar.transform.Find("Character Avatar").Find("CharacterBodyAvatar").GetComponent<SkinnedMeshRenderer>().enabled = false;
     }
 
     // Update is called once per frame

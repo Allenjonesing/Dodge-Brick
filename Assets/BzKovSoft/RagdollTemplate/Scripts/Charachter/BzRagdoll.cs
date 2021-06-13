@@ -178,21 +178,23 @@ namespace BzKovSoft.RagdollTemplate.Scripts.Charachter
         public void DeactivateMe()
         {
             // Get our body's last position
-            var positionToWarpTo = gameObject.transform.position;
+            var positionToWarpTo = playersRealAvatar.transform.position; // gameObject.transform.position;
             // Set the ragdoll's parent back to the [playerBodyAvatar]
             gameObject.transform.parent = playerBodyAvatar.transform;
             // Reset the true avatar's (playersRealAvatar) transform to bring us back to our parent location
-            playersRealAvatar.transform.position = positionToWarpTo;
-            var networkPlayer = FindObjectOfType<NetworkPlayer>();
-            var photonView = networkPlayer.GetComponent<PhotonView>();
-            if (photonView.IsMine)
-            {
-                photonView.RPC("MoveSelf", RpcTarget.AllBuffered, positionToWarpTo);
-            }
+            // playersRealAvatar.transform.position = positionToWarpTo;
+            //var networkPlayer = FindObjectOfType<NetworkPlayer>();
+            //var photonView = FindObjectOfType<NetworkPlayer>().GetComponent<PhotonView>();
+            //if (photonView.IsMine)
+            //{
+            //    photonView.RPC("MoveSelf", RpcTarget.AllBuffered, positionToWarpTo);
+            //}
+            // Set the rig's (playersXRRig) position to ours, plus some height
+            // playersXRRig.transform.position = positionToWarpTo;
             // Reset the parent's (playerBodyAvatar) position to be the parents
             playerBodyAvatar.transform.position = positionToWarpTo;
             // Reset our transform to bring us back to our parent location
-            gameObject.transform.position = positionToWarpTo;
+            gameObject.transform.position = new Vector3();
             // Vanish since we're concious
             gameObject.SetActive(false);
         }
