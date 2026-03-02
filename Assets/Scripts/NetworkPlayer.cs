@@ -29,43 +29,50 @@ public class NetworkPlayer : MonoBehaviour
         // We've just been created at the NetworkManager's position.
         photonView = GetComponent<PhotonView>();
 
-        // Find the XR Rig in the scene, as well as the specific VR devices
-        XRRig rig = FindObjectOfType<XRRig>();
-        headRig = rig.transform.Find("Camera Offset/Main Camera");
-        leftHandRig = rig.transform.Find("Camera Offset/LeftHand Controller");
-        rightHandRig = rig.transform.Find("Camera Offset/RightHand Controller");
-
-        // For our own avatar only, we'll load it in
+        // Find the XR Rig in the scene, as well as the specific VR devices.
+        // Only the local (owning) player has a physical XR rig to track.
         if (photonView.IsMine)
         {
-            photonView.RPC("LoadAvatar", RpcTarget.AllBuffered, PlayerPrefs.GetInt("AvatarID"), rig);
+            XRRig rig = FindObjectOfType<XRRig>();
+            headRig = rig.transform.Find("Camera Offset/Main Camera");
+            leftHandRig = rig.transform.Find("Camera Offset/LeftHand Controller");
+            rightHandRig = rig.transform.Find("Camera Offset/RightHand Controller");
+
+            // Load the avatar for this player on all clients.
+            // NOTE: XRRig is NOT passed as a parameter because Photon cannot
+            // serialize MonoBehaviour objects across the network; it is
+            // looked up locally instead.
+            photonView.RPC("LoadAvatar", RpcTarget.AllBuffered, PlayerPrefs.GetInt("AvatarID"));
         }
     }
 
-    //Function that is responsible to load an avatar among the avatar list
+    // Function that is responsible to load an avatar among the avatar list.
+    // Runs on all clients so each client can parent the avatar's bones to the
+    // NetworkPlayer's tracked head/hand transforms.
     [PunRPC]
-    public void LoadAvatar(int index, XRRig rig)
+    public void LoadAvatar(int index)
     {
         // Restart fresh (If needed, in order to change the selected avatar)
         if (spawnedAvatar)
             Destroy(spawnedAvatar);
 
-        // Select the correct avatar and init it where we want
-        // rig.gameObject.transform.position = 
-        spawnedAvatar = PhotonNetwork.Instantiate("Blue Avatar", rig.transform.position, rig.transform.rotation);
-        AvatarInfo avatarInfo = spawnedAvatar.GetComponent<AvatarInfo>();
+        // Only the owner calls PhotonNetwork.Instantiate; Photon's replication
+        // then creates the avatar prefab on all remote clients automatically.
+        if (photonView.IsMine)
+        {
+            XRRig rig = FindObjectOfType<XRRig>();
+            spawnedAvatar = PhotonNetwork.Instantiate("Blue Avatar", rig.transform.position, rig.transform.rotation);
+            AvatarInfo avatarInfo = spawnedAvatar.GetComponent<AvatarInfo>();
 
-        // Set correct parents for position tracking
-        avatarInfo.head.SetParent(head, false);
-        avatarInfo.leftHand.SetParent(leftHand, false);
-        avatarInfo.rightHand.SetParent(rightHand, false);
+            // Set correct parents for position tracking
+            avatarInfo.head.SetParent(head, false);
+            avatarInfo.leftHand.SetParent(leftHand, false);
+            avatarInfo.rightHand.SetParent(rightHand, false);
 
-        // Apply hand animators
-        leftHandAnimator = avatarInfo.leftHandAnimator;
-        rightHandAnimator = avatarInfo.rightHandAnimator;
-
-        // Remove our own avatar cause it sucks
-        // spawnedAvatar.transform.Find("Character Avatar").Find("CharacterBodyAvatar").GetComponent<SkinnedMeshRenderer>().enabled = false;
+            // Apply hand animators
+            leftHandAnimator = avatarInfo.leftHandAnimator;
+            rightHandAnimator = avatarInfo.rightHandAnimator;
+        }
     }
 
     // Update is called once per frame

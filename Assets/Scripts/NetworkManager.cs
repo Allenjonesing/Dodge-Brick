@@ -17,6 +17,9 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     public List<DefaultRoom> defaultRooms;
     public GameObject roomUI;
 
+    // Scene index to load once we successfully join a room.
+    private int pendingSceneIndex = -1;
+
     public void ConnectToServer()
     {
         PhotonNetwork.ConnectUsingSettings();
@@ -41,8 +44,11 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     {
         DefaultRoom roomSettings = defaultRooms[defaultRoomIndex];
 
-        //LOAD SCENE
-        PhotonNetwork.LoadLevel(roomSettings.sceneIndex);
+        // Store the scene so we can load it after joining the room.
+        // PhotonNetwork.LoadLevel requires being inside a room with
+        // AutomaticallySyncScene enabled; it must not be called before
+        // JoinOrCreateRoom completes.
+        pendingSceneIndex = roomSettings.sceneIndex;
 
         //CREATE THE ROOM
         RoomOptions roomOptions = new RoomOptions();
@@ -57,6 +63,13 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     {
         Debug.Log("Joined a Room");
         base.OnJoinedRoom();
+
+        // Load the scene now that we are inside the room.
+        if (pendingSceneIndex >= 0)
+        {
+            PhotonNetwork.LoadLevel(pendingSceneIndex);
+            pendingSceneIndex = -1;
+        }
     }
 
     public override void OnPlayerEnteredRoom(Player newPlayer)

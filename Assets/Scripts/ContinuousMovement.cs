@@ -32,27 +32,24 @@ public class ContinuousMovement : MonoBehaviour
         device.TryGetFeatureValue(CommonUsages.primary2DAxis, out inputAxis);
     }
 
+    // Movement is applied locally on the owner's client only.
+    // Photon's PhotonTransformView (observed by the PhotonView on this object)
+    // syncs the resulting position to all other clients automatically.
     private void FixedUpdate()
     {
         if (photonView.IsMine)
         {
-            photonView.RPC("MoveSelf", RpcTarget.AllBuffered);
-        }
-    }
+            Quaternion headYaw = Quaternion.Euler(0, rig.cameraGameObject.transform.eulerAngles.y, 0);
+            Vector3 direction = headYaw * new Vector3(inputAxis.x, 0, inputAxis.y);
 
-    [PunRPC]
-    public void MoveSelf()
-    {
-        Quaternion headYaw = Quaternion.Euler(0, rig.cameraGameObject.transform.eulerAngles.y, 0);
-        Vector3 direction = headYaw * new Vector3(inputAxis.x, 0, inputAxis.y);
+            // Move our position a step closer to the target.
+            float step = speed * Time.fixedDeltaTime; // calculate distance to move
+            var nextLocation = rig.transform.position + (direction / 2);
 
-        // Move our position a step closer to the target.
-        float step = speed * Time.fixedDeltaTime; // calculate distance to move
-        var nextLocation = rig.transform.position + (direction / 2);
-
-        if (!Physics.CheckSphere(new Vector3(nextLocation.x, 0, nextLocation.z), 0.1f, 1 << 12))
-        {
-            rig.transform.position = Vector3.MoveTowards(rig.transform.position, nextLocation, step);
+            if (!Physics.CheckSphere(new Vector3(nextLocation.x, 0, nextLocation.z), 0.1f, 1 << 12))
+            {
+                rig.transform.position = Vector3.MoveTowards(rig.transform.position, nextLocation, step);
+            }
         }
     }
 }
