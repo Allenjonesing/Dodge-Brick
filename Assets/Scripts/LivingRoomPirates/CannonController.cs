@@ -52,6 +52,9 @@ public class CannonController : MonoBehaviour
     [Range(0f, 1f)]
     public float firePower = 0.8f;
 
+    [Tooltip("Seconds until a fired cannonball is automatically destroyed.")]
+    public float cannonballLifetime = 5f;
+
     [Header("Optional")]
     // TODO: Assign a particle system for the muzzle flash VFX in the Inspector.
     [Tooltip("Muzzle flash / smoke particle system (optional).")]
@@ -108,8 +111,8 @@ public class CannonController : MonoBehaviour
                 rb.AddForce(firePoint.forward * fireForce, ForceMode.Impulse);
             }
 
-            // Auto-destroy cannonball after 5 seconds to avoid clutter.
-            Destroy(ball, 5f);
+            // Auto-destroy cannonball after cannonballLifetime seconds to avoid clutter.
+            Destroy(ball, cannonballLifetime);
         }
 
         // VFX / SFX

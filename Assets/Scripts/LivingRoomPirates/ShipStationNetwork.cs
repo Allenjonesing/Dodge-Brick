@@ -56,13 +56,15 @@ public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
     // IOnEventCallback registration
     // -----------------------------------------------------------------------
 
-    public override void OnEnable()
+    // MonoBehaviourPunCallbacks does not declare OnEnable/OnDisable as virtual,
+    // so we use 'new' (hiding) rather than 'override' to avoid a compile error.
+    public new void OnEnable()
     {
         base.OnEnable();
         PhotonNetwork.AddCallbackTarget(this);
     }
 
-    public override void OnDisable()
+    public new void OnDisable()
     {
         base.OnDisable();
         PhotonNetwork.RemoveCallbackTarget(this);

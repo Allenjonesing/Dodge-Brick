@@ -158,11 +158,10 @@ public class BoundaryShipGenerator : MonoBehaviour
         // 3. Derive usable rectangle.
         UsableWidth = Mathf.Max(0.5f, DetectedWidth  - safetyMargin * 2f);
         UsableDepth = Mathf.Max(0.5f, DetectedDepth - safetyMargin * 2f);
-        float area  = UsableWidth * UsableDepth;
 
         // 4. Select ship tier (limited by the smaller dimension).
         float minDim = Mathf.Min(UsableWidth, UsableDepth);
-        CurrentTier  = SelectTier(minDim, area);
+        CurrentTier  = SelectTier(minDim);
 
         // 5. Log results.
         Debug.Log($"[BoundaryShipGenerator] Play area detected: {DetectedWidth:F2} m x {DetectedDepth:F2} m");
@@ -208,6 +207,14 @@ public class BoundaryShipGenerator : MonoBehaviour
     private void QueryBoundary()
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
+        // Guard: OVRManager must be present before accessing OVRManager.boundary.
+        if (OVRManager.instance == null)
+        {
+            Debug.LogWarning("[BoundaryShipGenerator] OVRManager not found – using fallback dimensions.");
+            ApplyFallback();
+            return;
+        }
+
         OVRBoundary boundary = OVRManager.boundary;
 
         if (boundary != null && boundary.GetConfigured())
@@ -244,7 +251,7 @@ public class BoundaryShipGenerator : MonoBehaviour
     // Step 3 – Tier selection
     // -----------------------------------------------------------------------
 
-    private ShipTier SelectTier(float minDim, float area)
+    private ShipTier SelectTier(float minDim)
     {
         if (minDim < 1.5f) return ShipTier.Dinghy;
         if (minDim < 2.2f) return ShipTier.Rowboat;

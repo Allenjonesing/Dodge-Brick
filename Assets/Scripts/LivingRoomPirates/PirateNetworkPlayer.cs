@@ -125,9 +125,9 @@ public class PirateNetworkPlayer : MonoBehaviour, IPunObservable
         {
             ShipStationNetwork.Instance.SendAvatarSync(
                 head.position,      head.rotation,
-                leftHand  != null ? leftHand.position  : head.position,
+                leftHand  != null ? leftHand.position  : Vector3.zero,
                 leftHand  != null ? leftHand.rotation  : Quaternion.identity,
-                rightHand != null ? rightHand.position : head.position,
+                rightHand != null ? rightHand.position : Vector3.zero,
                 rightHand != null ? rightHand.rotation : Quaternion.identity
             );
         }
