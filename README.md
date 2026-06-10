@@ -339,3 +339,101 @@ The following bugs were present in the original codebase and have been corrected
 - [ ] Every brick prefab's `PhotonView` → **Observed Components** includes `XRGrabNetworkInteractable`
 - [ ] Every brick prefab's `PhotonView` → **Ownership Transfer** set to `Takeover` (so `RequestOwnership` works)
 - [ ] `NetworkPlayer` head/hand child transforms each have a `PhotonTransformView` observed by the root `PhotonView`
+
+---
+
+## Living Room Pirates
+
+> Converting the dodgeball prototype into a room-scale pirate ship experience. The player's only in-game locomotion is physical walking inside their real Meta Quest Guardian boundary.
+
+### New Scripts (`Assets/Scripts/LivingRoomPirates/`)
+
+| Script | Purpose |
+|---|---|
+| `BoundaryShipGenerator.cs` | Reads the Meta Guardian play-area via `OVRBoundary`, selects a `ShipTier`, and instantiates the ship from prefabs at runtime. Exposes `RegenerateShip()` for editor testing. |
+| `DisableLocomotion.cs` | Finds and disables all artificial locomotion on `Start()`: `ContinuousMovement`, `ContinuousMoveProvider`, `ContinuousTurnProvider`, `SnapTurnProvider`, `TeleportationProvider`, `OVRPlayerController`. |
+| `ShipStationNetwork.cs` | Photon custom-event hub (codes 10–15). Provides `SendCannonFired`, `SendCannonballHit`, `SendRepairAction`, `SendAnchorAction`, `SendSailAction`, `SendAvatarSync` helpers and handles incoming events. |
+| `CannonController.cs` | Single-cannon script: fires a local `Rigidbody` cannonball, plays VFX/SFX, then broadcasts via `ShipStationNetwork.SendCannonFired`. |
+| `PirateNetworkPlayer.cs` | Replaces/extends `NetworkPlayer.cs` for the pirate game. Streams head/hand transforms via `IPunObservable` and the `ShipStationNetwork` avatar-sync event. |
+
+### ShipTier Enum
+
+| Tier | Condition (smaller dimension) |
+|---|---|
+| `Dinghy` | < 1.5 m or no valid Guardian boundary |
+| `Rowboat` | 1.5 – 2.2 m |
+| `Sloop` | 2.2 – 3.0 m |
+| `Brig` | 3.0 – 4.0 m |
+| `Galleon` | 4.0 m + |
+
+### Scene Hierarchy (recommended)
+
+```
+LivingRoomPiratesRoot          ← BoundaryShipGenerator, DisableLocomotion
+  ShipGeneratedRoot            ← all spawned deck tiles, railings, stations
+  PlayerRig                    ← XR Rig (head-tracking only; no locomotion)
+  NetworkedPropsRoot           ← ShipStationNetwork (PhotonView required)
+  BoundaryDebugRoot            ← optional boundary visualiser objects
+```
+
+### Startup Flow
+
+```
+Scene loads
+  └─► DisableLocomotion.Start()
+        └─► disables ContinuousMovement, XRI providers, OVRPlayerController
+  └─► BoundaryShipGenerator.Start()  →  RegenerateShip()
+        ├─► OVRManager.trackingOriginType = Stage
+        ├─► OVRBoundary.GetDimensions(PlayArea)  →  width × depth in metres
+        │       (falls back to editorFallbackWidth × editorFallbackDepth in Editor)
+        ├─► usableWidth = width  - 2 × safetyMargin (default 0.35 m)
+        ├─► SelectTier(minDim)  →  ShipTier
+        ├─► SpawnDeck()         →  flat deck tiles
+        ├─► SpawnRailings()     →  railings around usable rectangle (colliders disabled)
+        └─► SpawnStations()     →  tier-specific interactables logged to console
+```
+
+### Network Events (ShipStationNetwork)
+
+| Event Code | Event | Reliable? |
+|---|---|---|
+| `10` | `CannonFired` (side, index, aimYaw, firePower) | Yes |
+| `11` | `CannonballHit` (hitType, position) | Yes |
+| `12` | `RepairAction` (station, amount) | Yes |
+| `13` | `AnchorAction` (isAnchored) | Yes |
+| `14` | `SailAction` (sailIndex, openAmount) | Yes |
+| `15` | `AvatarSync` (head/hand poses) | No (unreliable, high-frequency) |
+
+### Inspector Setup Checklist
+
+**BoundaryShipGenerator** (on `LivingRoomPiratesRoot`):
+- [ ] Assign `shipGeneratedRoot` Transform
+- [ ] Assign `boundaryDebugRoot` Transform (optional)
+- [ ] Assign structural prefabs: `DeckTile`, `RailingStraight`, `RailingCorner`
+- [ ] Assign station prefabs: `SteeringWheel`, `CannonForward`, `CannonSide`, `AnchorLever`, `SailRope`, `Spyglass`, `Oar`, `RepairBucket`, `AmmoCrate`, `TreasureChest`, `MastSmall`
+
+**CannonController** (on each cannon prefab):
+- [ ] Assign `firePoint` Transform (barrel mouth)
+- [ ] Assign `cannonballPrefab` (Rigidbody prefab)
+- [ ] Optionally assign `fireVFX` (ParticleSystem) and `fireAudio` (AudioSource)
+- [ ] Set `shipSide` ("Forward", "Port", or "Starboard") and `stationIndex`
+
+**ShipStationNetwork** (on `NetworkedPropsRoot`):
+- [ ] GameObject must have a `PhotonView` component
+
+**PirateNetworkPlayer** (on `Network Player` prefab):
+- [ ] Assign `head`, `leftHand`, `rightHand` avatar bone Transforms
+- [ ] Assign `leftHandAnimator`, `rightHandAnimator`
+- [ ] Add `PirateNetworkPlayer` to `PhotonView` → **Observed Components**
+
+### Multiplayer Design Principle
+
+Each player's ship fits their own real room — ship geometry is **not** networked. Only gameplay intent is sent:
+
+```
+Player fires port cannon #1  →  SendCannonFired("Port", 1, aimYaw, firePower)
+                                       │
+                               All remote clients receive EVENT_CANNON_FIRED
+                                       │
+                               Each client plays VFX on their own local ship layout
+```
