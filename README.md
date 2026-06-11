@@ -7,10 +7,11 @@ A multiplayer VR game for the **Oculus Quest** built with Unity, Photon Unity Ne
 ## Table of Contents
 
 1. [Game Overview](#game-overview)
-2. [Requirements](#requirements)
-3. [Project Structure](#project-structure)
-4. [Scene Layout](#scene-layout)
-5. [Scripts Reference](#scripts-reference)
+2. [How to Play](#how-to-play)
+3. [Requirements](#requirements)
+4. [Project Structure](#project-structure)
+5. [Scene Layout](#scene-layout)
+6. [Scripts Reference](#scripts-reference)
    - [NetworkManager.cs](#networkmanagercs)
    - [NetworkPlayerSpawner.cs](#networkplayerspawnercs)
    - [NetworkPlayer.cs](#networkplayercs)
@@ -27,10 +28,10 @@ A multiplayer VR game for the **Oculus Quest** built with Unity, Photon Unity Ne
    - [BrickSound.cs](#bricksoundcs)
    - [AvatarToRagdoll.cs](#avatartoragdollcs)
    - [AvatarToRagdollHead.cs](#avatartoragdollheadcs)
-6. [Multiplayer Architecture](#multiplayer-architecture)
-7. [Known Bugs Fixed](#known-bugs-fixed)
-8. [Setup & Running](#setup--running)
-9. [Photon Configuration Checklist](#photon-configuration-checklist)
+7. [Multiplayer Architecture](#multiplayer-architecture)
+8. [Known Bugs Fixed](#known-bugs-fixed)
+9. [Setup & Running](#setup--running)
+10. [Photon Configuration Checklist](#photon-configuration-checklist)
 
 ---
 
@@ -41,6 +42,26 @@ A multiplayer VR game for the **Oculus Quest** built with Unity, Photon Unity Ne
 - Bricks are grabbable physics objects. Any player can pick one up (ownership transfers to them) and throw it.
 - A brick collision on a player character triggers the **BzRagdoll** system, knocking them over.
 - Players can leave the match by pressing the **Menu Button** on their left controller.
+
+---
+
+## How to Play
+
+### Lobby Flow
+- Start in `Lobby.unity`.
+- Aim at **CONNECT** and press your controller trigger.
+- Wait for the lobby status prompt to confirm the room list is ready.
+- Aim at **PLAY** to join the `MainGym` room.
+
+### MainGym Controls
+- Reach out and grab bricks with your hands.
+- Throw bricks at other players or stack them for cover.
+- Use Photon Voice to talk with other players while you play.
+- Press the **left controller Menu button** to leave the match and return to the lobby.
+
+### Current In-Game Guidance
+- `Lobby.unity` now spawns a floating instruction/status board beside the connect button.
+- `MainGym.unity` now spawns a short-lived floating instruction board near the player spawn point.
 
 ---
 
@@ -88,8 +109,8 @@ Assets/
 
 ### Lobby (`Assets/Scenes/Lobby.unity`)
 - Hosts the **NetworkManager** GameObject which drives Photon connection/room creation.
-- Contains a UI canvas for room selection.
-- No XR Rig needed here; this is purely the matchmaking screen.
+- Contains a UI canvas for connection and room selection.
+- Includes an XR rig and a runtime guidance/status board so the flow is usable in-headset.
 
 ### MainGym (`Assets/Scenes/MainGym.unity`)
 - The play arena. Contains:
@@ -98,6 +119,7 @@ Assets/
   - **ContinuousMovement** – locomotion component attached to the XR Rig or Network Player.
   - **Brick prefabs** – physics objects with `XRGrabNetworkInteractable` + `PhotonView` + `PhotonTransformView`.
   - **Death/sound zones** – trigger volumes with `BrickSound`.
+      - **Runtime instruction board** – explains the match controls on load.
 
 ---
 
@@ -339,3 +361,101 @@ The following bugs were present in the original codebase and have been corrected
 - [ ] Every brick prefab's `PhotonView` → **Observed Components** includes `XRGrabNetworkInteractable`
 - [ ] Every brick prefab's `PhotonView` → **Ownership Transfer** set to `Takeover` (so `RequestOwnership` works)
 - [ ] `NetworkPlayer` head/hand child transforms each have a `PhotonTransformView` observed by the root `PhotonView`
+
+---
+
+## Living Room Pirates
+
+> Converting the dodgeball prototype into a room-scale pirate ship experience. The player's only in-game locomotion is physical walking inside their real Meta Quest Guardian boundary.
+
+### New Scripts (`Assets/Scripts/LivingRoomPirates/`)
+
+| Script | Purpose |
+|---|---|
+| `BoundaryShipGenerator.cs` | Reads the Meta Guardian play-area via `OVRBoundary`, selects a `ShipTier`, and instantiates the ship from prefabs at runtime. Exposes `RegenerateShip()` for editor testing. |
+| `DisableLocomotion.cs` | Finds and disables all artificial locomotion on `Start()`: `ContinuousMovement`, `ContinuousMoveProvider`, `ContinuousTurnProvider`, `SnapTurnProvider`, `TeleportationProvider`, `OVRPlayerController`. |
+| `ShipStationNetwork.cs` | Photon custom-event hub (codes 10–15). Provides `SendCannonFired`, `SendCannonballHit`, `SendRepairAction`, `SendAnchorAction`, `SendSailAction`, `SendAvatarSync` helpers and handles incoming events. |
+| `CannonController.cs` | Single-cannon script: fires a local `Rigidbody` cannonball, plays VFX/SFX, then broadcasts via `ShipStationNetwork.SendCannonFired`. |
+| `PirateNetworkPlayer.cs` | Replaces/extends `NetworkPlayer.cs` for the pirate game. Streams head/hand transforms via `IPunObservable` and the `ShipStationNetwork` avatar-sync event. |
+
+### ShipTier Enum
+
+| Tier | Condition (smaller dimension) |
+|---|---|
+| `Dinghy` | < 1.5 m or no valid Guardian boundary |
+| `Rowboat` | 1.5 – 2.2 m |
+| `Sloop` | 2.2 – 3.0 m |
+| `Brig` | 3.0 – 4.0 m |
+| `Galleon` | 4.0 m + |
+
+### Scene Hierarchy (recommended)
+
+```
+LivingRoomPiratesRoot          ← BoundaryShipGenerator, DisableLocomotion
+  ShipGeneratedRoot            ← all spawned deck tiles, railings, stations
+  PlayerRig                    ← XR Rig (head-tracking only; no locomotion)
+  NetworkedPropsRoot           ← ShipStationNetwork (PhotonView required)
+  BoundaryDebugRoot            ← optional boundary visualiser objects
+```
+
+### Startup Flow
+
+```
+Scene loads
+  └─► DisableLocomotion.Start()
+        └─► disables ContinuousMovement, XRI providers, OVRPlayerController
+  └─► BoundaryShipGenerator.Start()  →  RegenerateShip()
+        ├─► OVRManager.trackingOriginType = Stage
+        ├─► OVRBoundary.GetDimensions(PlayArea)  →  width × depth in metres
+        │       (falls back to editorFallbackWidth × editorFallbackDepth in Editor)
+        ├─► usableWidth = width  - 2 × safetyMargin (default 0.35 m)
+        ├─► SelectTier(minDim)  →  ShipTier
+        ├─► SpawnDeck()         →  flat deck tiles
+        ├─► SpawnRailings()     →  railings around usable rectangle (colliders disabled)
+        └─► SpawnStations()     →  tier-specific interactables logged to console
+```
+
+### Network Events (ShipStationNetwork)
+
+| Event Code | Event | Reliable? |
+|---|---|---|
+| `10` | `CannonFired` (side, index, aimYaw, firePower) | Yes |
+| `11` | `CannonballHit` (hitType, position) | Yes |
+| `12` | `RepairAction` (station, amount) | Yes |
+| `13` | `AnchorAction` (isAnchored) | Yes |
+| `14` | `SailAction` (sailIndex, openAmount) | Yes |
+| `15` | `AvatarSync` (head/hand poses) | No (unreliable, high-frequency) |
+
+### Inspector Setup Checklist
+
+**BoundaryShipGenerator** (on `LivingRoomPiratesRoot`):
+- [ ] Assign `shipGeneratedRoot` Transform
+- [ ] Assign `boundaryDebugRoot` Transform (optional)
+- [ ] Assign structural prefabs: `DeckTile`, `RailingStraight`, `RailingCorner`
+- [ ] Assign station prefabs: `SteeringWheel`, `CannonForward`, `CannonSide`, `AnchorLever`, `SailRope`, `Spyglass`, `Oar`, `RepairBucket`, `AmmoCrate`, `TreasureChest`, `MastSmall`
+
+**CannonController** (on each cannon prefab):
+- [ ] Assign `firePoint` Transform (barrel mouth)
+- [ ] Assign `cannonballPrefab` (Rigidbody prefab)
+- [ ] Optionally assign `fireVFX` (ParticleSystem) and `fireAudio` (AudioSource)
+- [ ] Set `shipSide` ("Forward", "Port", or "Starboard") and `stationIndex`
+
+**ShipStationNetwork** (on `NetworkedPropsRoot`):
+- [ ] GameObject must have a `PhotonView` component
+
+**PirateNetworkPlayer** (on `Network Player` prefab):
+- [ ] Assign `head`, `leftHand`, `rightHand` avatar bone Transforms
+- [ ] Assign `leftHandAnimator`, `rightHandAnimator`
+- [ ] Add `PirateNetworkPlayer` to `PhotonView` → **Observed Components**
+
+### Multiplayer Design Principle
+
+Each player's ship fits their own real room — ship geometry is **not** networked. Only gameplay intent is sent:
+
+```
+Player fires port cannon #1  →  SendCannonFired("Port", 1, aimYaw, firePower)
+                                       │
+                               All remote clients receive EVENT_CANNON_FIRED
+                                       │
+                               Each client plays VFX on their own local ship layout
+```

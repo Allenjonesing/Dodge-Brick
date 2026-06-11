@@ -41,6 +41,7 @@ MonoBehaviour:
   - ChangeColour
   - LoadAvatar
   - MoveSelf
+  - RPC_LoadPirateAvatar
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1
