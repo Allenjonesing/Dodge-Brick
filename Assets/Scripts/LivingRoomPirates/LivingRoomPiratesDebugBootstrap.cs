@@ -58,8 +58,8 @@ namespace Assets.Scripts.LivingRoomPirates
             generator.boundaryDebugRoot = boundaryDebugRoot.transform;
 
             generator.safetyMargin = 0.2f;
-            generator.editorFallbackWidth = 3.4f;
-            generator.editorFallbackDepth = 3.4f;
+            generator.editorFallbackWidth = 0.75f;
+            generator.editorFallbackDepth = 0.75f;
 
             stormController.boundaryShipGenerator = generator;
             stormController.environmentMotionRoot = environmentMotionRoot.transform;
