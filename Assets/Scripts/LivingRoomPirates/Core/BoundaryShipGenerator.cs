@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System;
 using UnityEngine;
 
 // ---------------------------------------------------------------------------
@@ -133,6 +134,7 @@ public class BoundaryShipGenerator : MonoBehaviour
 
     private void Start()
     {
+        EnsureStormMotionController();
         RegenerateShip();
     }
 
@@ -173,6 +175,12 @@ public class BoundaryShipGenerator : MonoBehaviour
         SpawnRailings();
         SpawnStations();
 
+        ShipStormMotionController stormMotionController = GetComponent<ShipStormMotionController>();
+        if (stormMotionController != null)
+        {
+            stormMotionController.RefreshEnvironmentLayout();
+        }
+
         Debug.Log("[BoundaryShipGenerator] Ship generation complete.");
     }
 
@@ -186,9 +194,8 @@ public class BoundaryShipGenerator : MonoBehaviour
         // Stage tracking: world origin = floor-centre of play area.
         // This keeps the generated ship aligned with the real room even after
         // normal headset re-centring.
-        if (OVRManager.instance != null)
+        if (TrySetOculusTrackingOrigin())
         {
-            OVRManager.trackingOriginType = OVRManager.TrackingOrigin.Stage;
             Debug.Log("[BoundaryShipGenerator] Tracking origin set to Stage.");
         }
         else
@@ -207,21 +214,10 @@ public class BoundaryShipGenerator : MonoBehaviour
     private void QueryBoundary()
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
-        // Guard: OVRManager must be present before accessing OVRManager.boundary.
-        if (OVRManager.instance == null)
+        if (TryGetOculusBoundaryDimensions(out float detectedWidth, out float detectedDepth))
         {
-            Debug.LogWarning("[BoundaryShipGenerator] OVRManager not found – using fallback dimensions.");
-            ApplyFallback();
-            return;
-        }
-
-        OVRBoundary boundary = OVRManager.boundary;
-
-        if (boundary != null && boundary.GetConfigured())
-        {
-            Vector3 dims  = boundary.GetDimensions(OVRBoundary.BoundaryType.PlayArea);
-            DetectedWidth = dims.x;
-            DetectedDepth = dims.z;
+            DetectedWidth = detectedWidth;
+            DetectedDepth = detectedDepth;
 
             if (DetectedWidth < 0.5f || DetectedDepth < 0.5f)
             {
@@ -245,6 +241,73 @@ public class BoundaryShipGenerator : MonoBehaviour
     {
         DetectedWidth = editorFallbackWidth;
         DetectedDepth = editorFallbackDepth;
+    }
+
+    private bool TrySetOculusTrackingOrigin()
+    {
+        Type ovrManagerType = FindType("OVRManager");
+        if (ovrManagerType == null)
+            return false;
+
+        object instance = ovrManagerType.GetProperty("instance")?.GetValue(null, null);
+        if (instance == null)
+            return false;
+
+        Type trackingOriginType = ovrManagerType.GetNestedType("TrackingOrigin");
+        if (trackingOriginType == null)
+            return false;
+
+        object stage = Enum.Parse(trackingOriginType, "Stage");
+        ovrManagerType.GetProperty("trackingOriginType")?.SetValue(null, stage, null);
+        return true;
+    }
+
+    private bool TryGetOculusBoundaryDimensions(out float width, out float depth)
+    {
+        width = 0f;
+        depth = 0f;
+
+        Type ovrManagerType = FindType("OVRManager");
+        Type ovrBoundaryType = FindType("OVRBoundary");
+        if (ovrManagerType == null || ovrBoundaryType == null)
+            return false;
+
+        object instance = ovrManagerType.GetProperty("instance")?.GetValue(null, null);
+        if (instance == null)
+            return false;
+
+        object boundary = ovrManagerType.GetProperty("boundary")?.GetValue(null, null);
+        if (boundary == null)
+            return false;
+
+        object configured = ovrBoundaryType.GetMethod("GetConfigured")?.Invoke(boundary, null);
+        if (!(configured is bool isConfigured) || !isConfigured)
+            return false;
+
+        Type boundaryType = ovrBoundaryType.GetNestedType("BoundaryType");
+        if (boundaryType == null)
+            return false;
+
+        object playArea = Enum.Parse(boundaryType, "PlayArea");
+        object dimensions = ovrBoundaryType.GetMethod("GetDimensions")?.Invoke(boundary, new[] { playArea });
+        if (!(dimensions is Vector3 dims))
+            return false;
+
+        width = dims.x;
+        depth = dims.z;
+        return true;
+    }
+
+    private static Type FindType(string typeName)
+    {
+        foreach (System.Reflection.Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type type = assembly.GetType(typeName);
+            if (type != null)
+                return type;
+        }
+
+        return null;
     }
 
     // -----------------------------------------------------------------------
@@ -272,22 +335,7 @@ public class BoundaryShipGenerator : MonoBehaviour
     {
         if (deckTilePrefab == null)
         {
-            // Placeholder: a single scaled primitive so the deck is visible
-            // even when no prefab has been assigned yet.
-            GameObject placeholder = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            placeholder.name = "DeckPlaceholder";
-            placeholder.transform.SetParent(shipGeneratedRoot, false);
-            placeholder.transform.localPosition = Vector3.zero;
-            // Unity's Plane is 10 m x 10 m at scale 1, so divide by 10.
-            placeholder.transform.localScale = new Vector3(UsableWidth / 10f, 1f, UsableDepth / 10f);
-
-            // Grey material to distinguish from the real floor.
-            Renderer r = placeholder.GetComponent<Renderer>();
-            if (r) r.material.color = new Color(0.45f, 0.35f, 0.2f); // wooden-brown
-
-            // Remove collider so players don't clip.
-            Collider c = placeholder.GetComponent<Collider>();
-            if (c) c.enabled = false;
+            SpawnPlaceholderDeck();
 
             Debug.Log("[BoundaryShipGenerator] No deckTilePrefab assigned – spawned placeholder deck.");
             return;
@@ -326,17 +374,18 @@ public class BoundaryShipGenerator : MonoBehaviour
     /// </summary>
     private void SpawnRailings()
     {
-        if (railingStraightPrefab == null && railingCornerPrefab == null)
-        {
-            Debug.Log("[BoundaryShipGenerator] No railing prefabs assigned – skipping railings.");
-            return;
-        }
-
         float hw = UsableWidth  * 0.5f; // half-width
         float hd = UsableDepth * 0.5f; // half-depth
 
         // Segment length assumed to be 1 m.
         float segLen = 1f;
+
+        if (railingStraightPrefab == null && railingCornerPrefab == null)
+        {
+            SpawnPlaceholderRailings(hw, hd, segLen);
+            Debug.Log("[BoundaryShipGenerator] No railing prefabs assigned – spawned placeholder railings.");
+            return;
+        }
 
         // --- Front rail (bow, +Z) ---
         SpawnRailLine(new Vector3(-hw, 0f,  hd), new Vector3( hw, 0f,  hd), Vector3.right, segLen, "Front");
@@ -391,6 +440,72 @@ public class BoundaryShipGenerator : MonoBehaviour
             foreach (Collider c in corner.GetComponentsInChildren<Collider>())
                 c.enabled = false;
         }
+    }
+
+    private void SpawnPlaceholderRailings(float halfWidth, float halfDepth, float segLen)
+    {
+        SpawnPlaceholderRailLine(new Vector3(-halfWidth, 0f,  halfDepth), new Vector3( halfWidth, 0f,  halfDepth), segLen, "Front");
+        SpawnPlaceholderRailLine(new Vector3( halfWidth, 0f, -halfDepth), new Vector3(-halfWidth, 0f, -halfDepth), segLen, "Back");
+        SpawnPlaceholderRailLine(new Vector3(-halfWidth, 0f,  halfDepth), new Vector3(-halfWidth, 0f, -halfDepth), segLen, "Left");
+        SpawnPlaceholderRailLine(new Vector3( halfWidth, 0f, -halfDepth), new Vector3( halfWidth, 0f,  halfDepth), segLen, "Right");
+
+        SpawnPlaceholderCorner(new Vector3(-halfWidth, 0f,  halfDepth), "CornerFrontLeft");
+        SpawnPlaceholderCorner(new Vector3( halfWidth, 0f,  halfDepth), "CornerFrontRight");
+        SpawnPlaceholderCorner(new Vector3( halfWidth, 0f, -halfDepth), "CornerBackRight");
+        SpawnPlaceholderCorner(new Vector3(-halfWidth, 0f, -halfDepth), "CornerBackLeft");
+    }
+
+    private void SpawnPlaceholderRailLine(Vector3 from, Vector3 to, float segLen, string side)
+    {
+        float length = Vector3.Distance(from, to);
+        int count = Mathf.Max(1, Mathf.FloorToInt(length / segLen));
+        Vector3 inward = Vector3.Cross(Vector3.up, (to - from).normalized) * 0.05f;
+        Vector3? previousTop = null;
+        Vector3? previousMid = null;
+
+        for (int i = 0; i < count; i++)
+        {
+            float t = (i + 0.5f) / count;
+            Vector3 position = Vector3.Lerp(from, to, t) + inward;
+            Vector3 forward = (to - from).normalized;
+            CreatePlaceholderPart(
+                $"Railing_{side}_{i}",
+                PrimitiveType.Cube,
+                position + Vector3.up * 0.5f,
+                Quaternion.LookRotation(forward),
+                new Vector3(0.08f, 1f, 0.12f),
+                new Color(0.35f, 0.24f, 0.12f));
+
+            Vector3 top = position + Vector3.up * 0.82f;
+            Vector3 mid = position + Vector3.up * 0.48f;
+            if (previousTop.HasValue)
+            {
+                CreatePlaceholderBeam($"Railing_{side}_{i}_TopRail", previousTop.Value, top, 0.045f, new Color(0.62f, 0.5f, 0.28f));
+                CreatePlaceholderBeam($"Railing_{side}_{i}_MidRail", previousMid.Value, mid, 0.03f, new Color(0.48f, 0.37f, 0.18f));
+            }
+
+            previousTop = top;
+            previousMid = mid;
+        }
+    }
+
+    private void SpawnPlaceholderCorner(Vector3 position, string partName)
+    {
+        CreatePlaceholderPart(
+            partName,
+            PrimitiveType.Cube,
+            position + Vector3.up * 0.5f,
+            Quaternion.identity,
+            new Vector3(0.16f, 1f, 0.16f),
+            new Color(0.38f, 0.26f, 0.14f));
+
+        CreatePlaceholderPart(
+            $"{partName}_Cap",
+            PrimitiveType.Sphere,
+            position + Vector3.up * 1.02f,
+            Quaternion.identity,
+            new Vector3(0.12f, 0.12f, 0.12f),
+            new Color(0.73f, 0.62f, 0.36f));
     }
 
     // -----------------------------------------------------------------------
@@ -527,13 +642,48 @@ public class BoundaryShipGenerator : MonoBehaviour
     {
         if (prefab == null)
         {
-            Debug.Log($"[BoundaryShipGenerator]   Station '{label}': prefab not assigned – skipped.");
-            return null;
+            GameObject marker = SpawnPlaceholderStation(localPos, yaw, label);
+            Debug.Log($"[BoundaryShipGenerator]   Station '{label}': prefab not assigned – spawned placeholder.");
+            return marker;
         }
 
         GameObject obj = SpawnPrefab(prefab, localPos, Quaternion.Euler(0f, yaw, 0f), label);
         Debug.Log($"[BoundaryShipGenerator]   Station '{label}' spawned at {localPos}.");
         return obj;
+    }
+
+    private GameObject SpawnPlaceholderStation(Vector3 localPos, float yaw, string label)
+    {
+        Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
+
+        if (LabelContains(label, "cannon")) return SpawnPlaceholderCannon(localPos, rotation, label);
+        if (LabelContains(label, "steering")) return SpawnPlaceholderWheel(localPos, rotation, label);
+        if (LabelContains(label, "anchor")) return SpawnPlaceholderLever(localPos, rotation, label, new Color(0.18f, 0.28f, 0.45f));
+        if (LabelContains(label, "sail")) return SpawnPlaceholderRopeRig(localPos, rotation, label);
+        if (LabelContains(label, "mast")) return SpawnPlaceholderMast(localPos, rotation, label);
+        if (LabelContains(label, "spyglass")) return SpawnPlaceholderSpyglass(localPos, rotation, label);
+        if (LabelContains(label, "oar")) return SpawnPlaceholderOar(localPos, rotation, label);
+        if (LabelContains(label, "repair")) return SpawnPlaceholderBucket(localPos, rotation, label);
+        if (LabelContains(label, "ammo")) return SpawnPlaceholderCrate(localPos, rotation, label, new Color(0.48f, 0.3f, 0.14f));
+        if (LabelContains(label, "treasure")) return SpawnPlaceholderChest(localPos, rotation, label);
+
+        GameObject marker = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cylinder,
+            localPos + Vector3.up * 0.15f,
+            rotation,
+            new Vector3(0.25f, 0.15f, 0.25f),
+            StationColor(label));
+
+        CreatePlaceholderPart(
+            $"{label}_Indicator",
+            PrimitiveType.Cube,
+            localPos + rotation * new Vector3(0f, 0.55f, 0.28f),
+            Quaternion.Euler(0f, yaw, 30f),
+            new Vector3(0.08f, 0.08f, 0.3f),
+            Color.white);
+
+        return marker;
     }
 
     /// <summary>Instantiates a prefab under shipGeneratedRoot with a given name.</summary>
@@ -549,6 +699,352 @@ public class BoundaryShipGenerator : MonoBehaviour
         return obj;
     }
 
+    private GameObject CreatePlaceholderPart(string objName, PrimitiveType primitiveType, Vector3 localPos, Quaternion localRot, Vector3 localScale, Color color)
+    {
+        Transform parent = shipGeneratedRoot != null ? shipGeneratedRoot : transform;
+        GameObject obj = GameObject.CreatePrimitive(primitiveType);
+        obj.name = objName;
+        obj.transform.SetParent(parent, false);
+        obj.transform.localPosition = localPos;
+        obj.transform.localRotation = localRot;
+        obj.transform.localScale = localScale;
+
+        Renderer renderer = obj.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            renderer.material.color = color;
+        }
+
+        Collider collider = obj.GetComponent<Collider>();
+        if (collider != null)
+        {
+            collider.enabled = false;
+        }
+
+        return obj;
+    }
+
+    private void SpawnPlaceholderDeck()
+    {
+        float hullWidth = Mathf.Max(1f, UsableWidth + 0.32f);
+        float hullDepth = Mathf.Max(1f, UsableDepth + 0.7f);
+
+        CreatePlaceholderPart(
+            "HullShadow",
+            PrimitiveType.Cube,
+            new Vector3(0f, -0.08f, 0f),
+            Quaternion.identity,
+            new Vector3(hullWidth * 0.92f, 0.04f, hullDepth * 0.92f),
+            new Color(0.12f, 0.09f, 0.06f));
+
+        CreatePlaceholderPart(
+            "HullBase",
+            PrimitiveType.Cube,
+            new Vector3(0f, -0.03f, 0f),
+            Quaternion.identity,
+            new Vector3(hullWidth * 0.8f, 0.22f, hullDepth * 0.86f),
+            new Color(0.24f, 0.16f, 0.1f));
+
+        CreatePlaceholderPart(
+            "DeckSurface",
+            PrimitiveType.Cube,
+            new Vector3(0f, 0.03f, 0f),
+            Quaternion.identity,
+            new Vector3(UsableWidth, 0.06f, UsableDepth),
+            new Color(0.56f, 0.43f, 0.24f));
+
+        float plankWidth = Mathf.Clamp(UsableWidth / 5f, 0.28f, 0.5f);
+        float plankStart = -UsableWidth * 0.5f + plankWidth * 0.5f;
+        int plankCount = Mathf.Max(3, Mathf.RoundToInt(UsableWidth / plankWidth));
+        for (int i = 0; i < plankCount; i++)
+        {
+            float x = plankStart + i * plankWidth;
+            CreatePlaceholderPart(
+                $"DeckPlank_{i}",
+                PrimitiveType.Cube,
+                new Vector3(x, 0.065f, 0f),
+                Quaternion.identity,
+                new Vector3(plankWidth - 0.02f, 0.01f, UsableDepth * 0.98f),
+                i % 2 == 0 ? new Color(0.62f, 0.49f, 0.28f) : new Color(0.52f, 0.38f, 0.2f));
+        }
+
+        float bowZ = UsableDepth * 0.5f + 0.22f;
+        float sternZ = -UsableDepth * 0.5f - 0.18f;
+        CreatePlaceholderPart(
+            "BowCap",
+            PrimitiveType.Cylinder,
+            new Vector3(0f, 0.07f, bowZ),
+            Quaternion.Euler(90f, 0f, 0f),
+            new Vector3(hullWidth * 0.28f, 0.14f, 0.16f),
+            new Color(0.34f, 0.22f, 0.13f));
+
+        CreatePlaceholderPart(
+            "SternCap",
+            PrimitiveType.Cube,
+            new Vector3(0f, 0.1f, sternZ),
+            Quaternion.identity,
+            new Vector3(hullWidth * 0.52f, 0.18f, 0.18f),
+            new Color(0.31f, 0.21f, 0.12f));
+
+        CreatePlaceholderPart(
+            "HelmStep",
+            PrimitiveType.Cube,
+            new Vector3(0f, 0.13f, sternZ + 0.1f),
+            Quaternion.identity,
+            new Vector3(hullWidth * 0.34f, 0.08f, 0.26f),
+            new Color(0.4f, 0.29f, 0.16f));
+    }
+
+    private GameObject SpawnPlaceholderCannon(Vector3 localPos, Quaternion rotation, string label)
+    {
+        GameObject carriage = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cube,
+            localPos + Vector3.up * 0.12f,
+            rotation,
+            new Vector3(0.32f, 0.14f, 0.32f),
+            new Color(0.38f, 0.24f, 0.12f));
+
+        CreatePlaceholderPart(
+            $"{label}_Barrel",
+            PrimitiveType.Cylinder,
+            localPos + rotation * new Vector3(0f, 0.28f, 0.18f),
+            rotation * Quaternion.Euler(90f, 0f, 0f),
+            new Vector3(0.12f, 0.36f, 0.12f),
+            new Color(0.15f, 0.15f, 0.18f));
+
+        return carriage;
+    }
+
+    private GameObject SpawnPlaceholderWheel(Vector3 localPos, Quaternion rotation, string label)
+    {
+        GameObject stand = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cube,
+            localPos + Vector3.up * 0.2f,
+            rotation,
+            new Vector3(0.16f, 0.4f, 0.16f),
+            new Color(0.45f, 0.3f, 0.16f));
+
+        CreatePlaceholderPart(
+            $"{label}_Wheel",
+            PrimitiveType.Cylinder,
+            localPos + rotation * new Vector3(0f, 0.6f, 0.05f),
+            rotation * Quaternion.Euler(0f, 0f, 90f),
+            new Vector3(0.22f, 0.04f, 0.22f),
+            new Color(0.68f, 0.48f, 0.2f));
+
+        return stand;
+    }
+
+    private GameObject SpawnPlaceholderLever(Vector3 localPos, Quaternion rotation, string label, Color accent)
+    {
+        GameObject baseBlock = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cube,
+            localPos + Vector3.up * 0.08f,
+            rotation,
+            new Vector3(0.22f, 0.12f, 0.22f),
+            new Color(0.28f, 0.18f, 0.1f));
+
+        CreatePlaceholderPart(
+            $"{label}_Handle",
+            PrimitiveType.Cube,
+            localPos + rotation * new Vector3(0f, 0.45f, 0.02f),
+            rotation * Quaternion.Euler(-25f, 0f, 0f),
+            new Vector3(0.08f, 0.6f, 0.08f),
+            accent);
+
+        return baseBlock;
+    }
+
+    private GameObject SpawnPlaceholderRopeRig(Vector3 localPos, Quaternion rotation, string label)
+    {
+        GameObject cleat = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cube,
+            localPos + Vector3.up * 0.08f,
+            rotation,
+            new Vector3(0.28f, 0.08f, 0.18f),
+            new Color(0.48f, 0.3f, 0.16f));
+
+        CreatePlaceholderPart(
+            $"{label}_Rope",
+            PrimitiveType.Cylinder,
+            localPos + rotation * new Vector3(0f, 0.28f, 0f),
+            rotation * Quaternion.Euler(0f, 0f, 90f),
+            new Vector3(0.14f, 0.03f, 0.14f),
+            new Color(0.84f, 0.82f, 0.68f));
+
+        return cleat;
+    }
+
+    private GameObject SpawnPlaceholderMast(Vector3 localPos, Quaternion rotation, string label)
+    {
+        GameObject mast = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cylinder,
+            localPos + Vector3.up * 0.85f,
+            rotation,
+            new Vector3(0.12f, 0.85f, 0.12f),
+            new Color(0.56f, 0.41f, 0.23f));
+
+        CreatePlaceholderPart(
+            $"{label}_Yard",
+            PrimitiveType.Cube,
+            localPos + rotation * new Vector3(0f, 1.05f, 0f),
+            rotation,
+            new Vector3(0.9f, 0.05f, 0.08f),
+            new Color(0.78f, 0.78f, 0.68f));
+
+        return mast;
+    }
+
+    private GameObject SpawnPlaceholderSpyglass(Vector3 localPos, Quaternion rotation, string label)
+    {
+        GameObject stand = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cylinder,
+            localPos + Vector3.up * 0.16f,
+            rotation,
+            new Vector3(0.12f, 0.16f, 0.12f),
+            new Color(0.4f, 0.28f, 0.14f));
+
+        CreatePlaceholderPart(
+            $"{label}_Scope",
+            PrimitiveType.Cylinder,
+            localPos + rotation * new Vector3(0f, 0.44f, 0.08f),
+            rotation * Quaternion.Euler(70f, 0f, 0f),
+            new Vector3(0.06f, 0.24f, 0.06f),
+            new Color(0.72f, 0.62f, 0.16f));
+
+        return stand;
+    }
+
+    private GameObject SpawnPlaceholderOar(Vector3 localPos, Quaternion rotation, string label)
+    {
+        GameObject shaft = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cube,
+            localPos + rotation * new Vector3(0f, 0.15f, 0f),
+            rotation,
+            new Vector3(0.06f, 0.06f, 0.8f),
+            new Color(0.56f, 0.39f, 0.2f));
+
+        CreatePlaceholderPart(
+            $"{label}_Blade",
+            PrimitiveType.Cube,
+            localPos + rotation * new Vector3(0f, 0.15f, 0.38f),
+            rotation,
+            new Vector3(0.16f, 0.02f, 0.22f),
+            new Color(0.62f, 0.46f, 0.24f));
+
+        return shaft;
+    }
+
+    private GameObject SpawnPlaceholderBucket(Vector3 localPos, Quaternion rotation, string label)
+    {
+        GameObject bucket = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cylinder,
+            localPos + Vector3.up * 0.14f,
+            rotation,
+            new Vector3(0.18f, 0.14f, 0.18f),
+            new Color(0.72f, 0.12f, 0.12f));
+
+        CreatePlaceholderPart(
+            $"{label}_Handle",
+            PrimitiveType.Cylinder,
+            localPos + rotation * new Vector3(0f, 0.34f, 0f),
+            rotation * Quaternion.Euler(0f, 0f, 90f),
+            new Vector3(0.14f, 0.02f, 0.14f),
+            new Color(0.82f, 0.82f, 0.82f));
+
+        return bucket;
+    }
+
+    private GameObject SpawnPlaceholderCrate(Vector3 localPos, Quaternion rotation, string label, Color color)
+    {
+        GameObject crate = CreatePlaceholderPart(
+            label,
+            PrimitiveType.Cube,
+            localPos + Vector3.up * 0.16f,
+            rotation,
+            new Vector3(0.28f, 0.24f, 0.28f),
+            color);
+
+        CreatePlaceholderPart(
+            $"{label}_Lid",
+            PrimitiveType.Cube,
+            localPos + rotation * new Vector3(0f, 0.3f, 0f),
+            rotation,
+            new Vector3(0.3f, 0.03f, 0.3f),
+            new Color(0.65f, 0.49f, 0.28f));
+
+        return crate;
+    }
+
+    private GameObject SpawnPlaceholderChest(Vector3 localPos, Quaternion rotation, string label)
+    {
+        GameObject chest = SpawnPlaceholderCrate(localPos, rotation, label, new Color(0.44f, 0.25f, 0.1f));
+        CreatePlaceholderPart(
+            $"{label}_Treasure",
+            PrimitiveType.Sphere,
+            localPos + rotation * new Vector3(0f, 0.34f, 0f),
+            rotation,
+            new Vector3(0.12f, 0.12f, 0.12f),
+            new Color(0.9f, 0.76f, 0.16f));
+        return chest;
+    }
+
+    private void CreatePlaceholderBeam(string objName, Vector3 from, Vector3 to, float thickness, Color color)
+    {
+        Vector3 delta = to - from;
+        float length = delta.magnitude;
+        if (length <= 0.001f) return;
+
+        CreatePlaceholderPart(
+            objName,
+            PrimitiveType.Cube,
+            from + delta * 0.5f,
+            Quaternion.LookRotation(delta.normalized),
+            new Vector3(thickness, thickness, length),
+            color);
+    }
+
+    private bool LabelContains(string label, string value)
+    {
+        return label.IndexOf(value, System.StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private Color StationColor(string label)
+    {
+        string lowered = label.ToLowerInvariant();
+
+        if (lowered.Contains("cannon")) return new Color(0.15f, 0.15f, 0.18f);
+        if (lowered.Contains("steering")) return new Color(0.65f, 0.42f, 0.18f);
+        if (lowered.Contains("anchor")) return new Color(0.18f, 0.28f, 0.45f);
+        if (lowered.Contains("sail") || lowered.Contains("mast")) return new Color(0.78f, 0.78f, 0.68f);
+        if (lowered.Contains("ammo")) return new Color(0.48f, 0.3f, 0.14f);
+        if (lowered.Contains("repair")) return new Color(0.72f, 0.12f, 0.12f);
+        if (lowered.Contains("spyglass")) return new Color(0.72f, 0.62f, 0.16f);
+        if (lowered.Contains("treasure")) return new Color(0.85f, 0.68f, 0.12f);
+        if (lowered.Contains("oar")) return new Color(0.5f, 0.32f, 0.18f);
+
+        return new Color(0.24f, 0.52f, 0.62f);
+    }
+
+    private void EnsureStormMotionController()
+    {
+        ShipStormMotionController stormMotionController = GetComponent<ShipStormMotionController>();
+        if (stormMotionController == null)
+        {
+            stormMotionController = gameObject.AddComponent<ShipStormMotionController>();
+        }
+
+        stormMotionController.boundaryShipGenerator = this;
+    }
+
     /// <summary>Destroys all children of shipGeneratedRoot so we start fresh.</summary>
     private void ClearGenerated()
     {
@@ -557,6 +1053,11 @@ public class BoundaryShipGenerator : MonoBehaviour
         foreach (Transform child in parent)
             children.Add(child.gameObject);
         foreach (GameObject child in children)
-            DestroyImmediate(child);
+        {
+            if (Application.isPlaying)
+                Destroy(child);
+            else
+                DestroyImmediate(child);
+        }
     }
 }

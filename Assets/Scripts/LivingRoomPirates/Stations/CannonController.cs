@@ -145,7 +145,7 @@ public class CannonController : MonoBehaviour
     /// Convenience method matching the XRSimpleInteractable.Activated signature
     /// so it can be wired directly in the Inspector.
     /// </summary>
-    public void OnActivated(ActivateEventArgs args)
+    public void OnActivated(XRBaseInteractor interactor)
     {
         Fire();
     }

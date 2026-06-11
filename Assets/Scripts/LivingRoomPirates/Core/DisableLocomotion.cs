@@ -12,10 +12,8 @@ using UnityEngine.XR.Interaction.Toolkit;
 //   the main game scene.  On Start() it automatically finds and disables:
 //
 //     • ContinuousMovement   (the existing joystick-move script in this project)
-//     • ContinuousMoveProvider   (XRI)
-//     • ContinuousTurnProvider   (XRI)
-//     • SnapTurnProvider         (XRI)
-//     • TeleportationProvider    (XRI)
+//     • Any XRI LocomotionProvider (for example SnapTurnProvider or
+//       TeleportationProvider in this project version)
 //     • OVRPlayerController      (Oculus Integration)
 //
 //   Head tracking, hand/controller tracking, grab, and UI pointers are NOT
@@ -53,13 +51,10 @@ public class DisableLocomotion : MonoBehaviour
         disabled += DisableAll<ContinuousMovement>("ContinuousMovement (project script)");
 
         // -- XR Interaction Toolkit locomotion providers --------------------
-        // These types may not exist if the project does not use XRI locomotion,
-        // so each is guarded by the #if in the helper below.
-
-        disabled += DisableAll<ContinuousMoveProvider>("ContinuousMoveProvider (XRI)");
-        disabled += DisableAll<ContinuousTurnProvider>("ContinuousTurnProvider (XRI)");
-        disabled += DisableAll<SnapTurnProvider>("SnapTurnProvider (XRI)");
-        disabled += DisableAll<TeleportationProvider>("TeleportationProvider (XRI)");
+        // This project's XRI version does not expose ContinuousMoveProvider or
+        // ContinuousTurnProvider. Disabling the shared base type catches all
+        // installed XRI locomotion implementations.
+        disabled += DisableAll<LocomotionProvider>("LocomotionProvider (XRI)");
 
         // -- Oculus OVRPlayerController -------------------------------------
         // OVRPlayerController is part of Oculus Integration; it drives the
@@ -86,7 +81,7 @@ public class DisableLocomotion : MonoBehaviour
     /// </summary>
     private int DisableAll<T>(string label) where T : MonoBehaviour
     {
-        T[] found = FindObjectsOfType<T>(includeInactive: true);
+        T[] found = FindSceneObjectsOfType<T>(includeInactive: true);
         foreach (T comp in found)
         {
             comp.enabled = false;
@@ -104,7 +99,7 @@ public class DisableLocomotion : MonoBehaviour
     {
         // We reference OVRPlayerController by its string name so this script
         // compiles even when the Oculus Integration package is absent.
-        MonoBehaviour[] all = FindObjectsOfType<MonoBehaviour>(includeInactive: true);
+        MonoBehaviour[] all = FindSceneObjectsOfType<MonoBehaviour>(includeInactive: true);
         foreach (MonoBehaviour mb in all)
         {
             if (mb.GetType().Name == "OVRPlayerController")
@@ -125,7 +120,7 @@ public class DisableLocomotion : MonoBehaviour
     {
         // Zeroes the velocity of any CharacterController to stop residual
         // momentum.  The component itself stays active for ground-snapping.
-        CharacterController[] ccs = FindObjectsOfType<CharacterController>(includeInactive: false);
+        CharacterController[] ccs = FindSceneObjectsOfType<CharacterController>(includeInactive: false);
         foreach (CharacterController cc in ccs)
         {
             // CharacterController.velocity is read-only; the way to stop it
@@ -134,5 +129,26 @@ public class DisableLocomotion : MonoBehaviour
             if (verboseLog)
                 Debug.Log($"[DisableLocomotion] CharacterController found on '{cc.gameObject.name}' – no locomotion script will call Move().");
         }
+    }
+
+    private T[] FindSceneObjectsOfType<T>(bool includeInactive) where T : Component
+    {
+        if (!includeInactive)
+            return FindObjectsOfType<T>();
+
+        T[] allObjects = Resources.FindObjectsOfTypeAll<T>();
+        List<T> sceneObjects = new List<T>(allObjects.Length);
+        foreach (T obj in allObjects)
+        {
+            if (obj.hideFlags != HideFlags.None)
+                continue;
+
+            if (!obj.gameObject.scene.IsValid())
+                continue;
+
+            sceneObjects.Add(obj);
+        }
+
+        return sceneObjects.ToArray();
     }
 }

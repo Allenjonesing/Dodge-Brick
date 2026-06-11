@@ -12,15 +12,30 @@ public class NetworkPlayerSpawner : MonoBehaviourPunCallbacks
     public override void OnJoinedRoom()
     {
         // When the network player joins, we create their [spawnedPlayerPrefab] at the transform.position.
-        debugText.GetComponent<TextMesh>().text = "A Player Joined The Room!";
         base.OnJoinedRoom();
+
+        if (debugText != null)
+        {
+            TextMesh debugLabel = debugText.GetComponent<TextMesh>();
+            if (debugLabel != null)
+                debugLabel.text = "Joined room. Grab bricks and throw them at rival pirates.";
+        }
+
+        PlayerGuidanceOverlay.SetStatus("You are in MainGym. Grab a brick to start playing.");
+
         // [spawnedPlayerPrefab] will have it's own bit of startup code
-        spawnedPlayerPrefab = PhotonNetwork.Instantiate("Network Player", transform.position, transform.rotation);
+        if (spawnedPlayerPrefab == null)
+            spawnedPlayerPrefab = PhotonNetwork.Instantiate("Network Player", transform.position, transform.rotation);
     }
 
     public override void OnLeftRoom()
     {
         base.OnLeftRoom();
-        PhotonNetwork.Destroy(spawnedPlayerPrefab);
+
+        if (spawnedPlayerPrefab != null)
+        {
+            PhotonNetwork.Destroy(spawnedPlayerPrefab);
+            spawnedPlayerPrefab = null;
+        }
     }
 }

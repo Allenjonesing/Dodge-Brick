@@ -7,10 +7,11 @@ A multiplayer VR game for the **Oculus Quest** built with Unity, Photon Unity Ne
 ## Table of Contents
 
 1. [Game Overview](#game-overview)
-2. [Requirements](#requirements)
-3. [Project Structure](#project-structure)
-4. [Scene Layout](#scene-layout)
-5. [Scripts Reference](#scripts-reference)
+2. [How to Play](#how-to-play)
+3. [Requirements](#requirements)
+4. [Project Structure](#project-structure)
+5. [Scene Layout](#scene-layout)
+6. [Scripts Reference](#scripts-reference)
    - [NetworkManager.cs](#networkmanagercs)
    - [NetworkPlayerSpawner.cs](#networkplayerspawnercs)
    - [NetworkPlayer.cs](#networkplayercs)
@@ -27,10 +28,10 @@ A multiplayer VR game for the **Oculus Quest** built with Unity, Photon Unity Ne
    - [BrickSound.cs](#bricksoundcs)
    - [AvatarToRagdoll.cs](#avatartoragdollcs)
    - [AvatarToRagdollHead.cs](#avatartoragdollheadcs)
-6. [Multiplayer Architecture](#multiplayer-architecture)
-7. [Known Bugs Fixed](#known-bugs-fixed)
-8. [Setup & Running](#setup--running)
-9. [Photon Configuration Checklist](#photon-configuration-checklist)
+7. [Multiplayer Architecture](#multiplayer-architecture)
+8. [Known Bugs Fixed](#known-bugs-fixed)
+9. [Setup & Running](#setup--running)
+10. [Photon Configuration Checklist](#photon-configuration-checklist)
 
 ---
 
@@ -41,6 +42,26 @@ A multiplayer VR game for the **Oculus Quest** built with Unity, Photon Unity Ne
 - Bricks are grabbable physics objects. Any player can pick one up (ownership transfers to them) and throw it.
 - A brick collision on a player character triggers the **BzRagdoll** system, knocking them over.
 - Players can leave the match by pressing the **Menu Button** on their left controller.
+
+---
+
+## How to Play
+
+### Lobby Flow
+- Start in `Lobby.unity`.
+- Aim at **CONNECT** and press your controller trigger.
+- Wait for the lobby status prompt to confirm the room list is ready.
+- Aim at **PLAY** to join the `MainGym` room.
+
+### MainGym Controls
+- Reach out and grab bricks with your hands.
+- Throw bricks at other players or stack them for cover.
+- Use Photon Voice to talk with other players while you play.
+- Press the **left controller Menu button** to leave the match and return to the lobby.
+
+### Current In-Game Guidance
+- `Lobby.unity` now spawns a floating instruction/status board beside the connect button.
+- `MainGym.unity` now spawns a short-lived floating instruction board near the player spawn point.
 
 ---
 
@@ -88,8 +109,8 @@ Assets/
 
 ### Lobby (`Assets/Scenes/Lobby.unity`)
 - Hosts the **NetworkManager** GameObject which drives Photon connection/room creation.
-- Contains a UI canvas for room selection.
-- No XR Rig needed here; this is purely the matchmaking screen.
+- Contains a UI canvas for connection and room selection.
+- Includes an XR rig and a runtime guidance/status board so the flow is usable in-headset.
 
 ### MainGym (`Assets/Scenes/MainGym.unity`)
 - The play arena. Contains:
@@ -98,6 +119,7 @@ Assets/
   - **ContinuousMovement** – locomotion component attached to the XR Rig or Network Player.
   - **Brick prefabs** – physics objects with `XRGrabNetworkInteractable` + `PhotonView` + `PhotonTransformView`.
   - **Death/sound zones** – trigger volumes with `BrickSound`.
+      - **Runtime instruction board** – explains the match controls on load.
 
 ---
 

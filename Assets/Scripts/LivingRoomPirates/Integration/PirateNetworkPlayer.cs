@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR;
 using Photon.Pun;
+using UnityEngine.XR.Interaction.Toolkit;
 
 // ---------------------------------------------------------------------------
 // PirateNetworkPlayer.cs
