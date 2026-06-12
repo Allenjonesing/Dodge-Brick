@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class OceanSurfaceFollower : MonoBehaviour
 {
-    public float heightOffset = 0f;
+    public float heightOffset = -2.0f;
     public bool alignToWaveNormal = true;
     public float normalAlignmentStrength = 4f;
     public float heightFollowStrength = 8f;
