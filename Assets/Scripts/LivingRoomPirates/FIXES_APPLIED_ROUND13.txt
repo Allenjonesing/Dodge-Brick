@@ -1,0 +1,8 @@
+Round 13 fixes:
+- Restored Water2 as the lower/background water plane.
+- Stopped using OceanWorldRoot movement for travel; it made one Water1 plane slide while the generated grid looked wrong.
+- Water1 root now only moves vertically for ship/ocean snap.
+- WaterOneGrid3x3 now moves and recycles the generated Water1_Tile_* children individually.
+- WaterOneGrid3x3 exposes waterTravelSpeed and waterTravelDirection.
+- Surface debug sandbox now drives tile recycling through WaterOneGrid3x3 and keeps Water2 active.
+- Enemy/debug rafts remain disabled.

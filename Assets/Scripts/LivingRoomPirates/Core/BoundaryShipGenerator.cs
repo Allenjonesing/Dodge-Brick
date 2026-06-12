@@ -41,16 +41,35 @@ public class BoundaryShipGenerator : MonoBehaviour
     public GameObject treasureChestPrefab;
     public GameObject mastSmallPrefab;
 
+    [Header("Tiny Raft / Runtime Scaling")]
+    [Tooltip("If the smallest usable dimension is below this, generate a yellow raft with no rails instead of a wooden dinghy.")]
+    public float tinyRaftThreshold = 1.0f;
+
+    [Tooltip("Multiplies spawned station prefab scale so wheel/cannons/sail controls are usable in VR.")]
+    public float stationPrefabScaleMultiplier = 2.0f;
+
+    [Tooltip("Force spawned station prefabs and their renderers/colliders on, even if the source prefab was disabled.")]
+    public bool forceEnableSpawnedStations = true;
+
     [Header("Boundary Settings")]
     [Tooltip("Metres kept between the generated ship and the real Guardian boundary.")]
     public float safetyMargin = 0.35f;
 
     [Header("Editor / Stationary / No-Headset Fallback")]
-    [Tooltip("Fallback width when no real roomscale Guardian boundary is available. Keep this dinghy-sized.")]
-    public float editorFallbackWidth = 0.5f;
+    [Tooltip("Fallback width when no real roomscale Guardian boundary is available.")]
+    public float editorFallbackWidth = 2.5f;
 
-    [Tooltip("Fallback depth when no real roomscale Guardian boundary is available. Keep this dinghy-sized.")]
-    public float editorFallbackDepth = 0.5f;
+    [Tooltip("Fallback depth when no real roomscale Guardian boundary is available.")]
+    public float editorFallbackDepth = 2.5f;
+
+    [Tooltip("For editor/no-headset testing, randomize the fallback boundary on each Play from 0.5m to 10m.")]
+    public bool randomizeEditorFallbackBoundary = true;
+
+    public float randomFallbackMin = 0.5f;
+    public float randomFallbackMax = 10f;
+
+    [Tooltip("Disable this when another runtime installer calls RegenerateShip and then creates snap targets.")]
+    public bool regenerateOnStart = true;
 
     public float DetectedWidth { get; private set; }
     public float DetectedDepth { get; private set; }
@@ -59,11 +78,13 @@ public class BoundaryShipGenerator : MonoBehaviour
     public ShipTier CurrentTier { get; private set; }
 
     private bool usedFallbackBoundary;
+    private bool IsTinyRaft => Mathf.Min(UsableWidth, UsableDepth) < tinyRaftThreshold;
 
     private void Start()
     {
         EnsureStormMotionController();
-        RegenerateShip();
+        if (regenerateOnStart)
+            RegenerateShip();
     }
 
     [ContextMenu("Regenerate Ship")]
@@ -90,19 +111,26 @@ public class BoundaryShipGenerator : MonoBehaviour
     }
         float minDim = Mathf.Min(UsableWidth, UsableDepth);
 
-        // Important:
-        // If we are in Editor, stationary boundary, no headset, or failed Guardian query,
-        // always force Dinghy. Otherwise the fallback dimensions can accidentally select Rowboat.
-        CurrentTier = usedFallbackBoundary ? ShipTier.Dinghy : SelectTier(minDim);
+        // In editor/no-headset mode we intentionally allow randomized fallback sizes
+        // to exercise every ship tier, from tiny raft through galleon.
+        CurrentTier = SelectTier(minDim);
 
         Debug.Log($"[BoundaryShipGenerator] Play area detected: {DetectedWidth:F2} m x {DetectedDepth:F2} m");
         Debug.Log($"[BoundaryShipGenerator] Usable area: {UsableWidth:F2} m x {UsableDepth:F2} m  margin={safetyMargin:F2} m");
         Debug.Log($"[BoundaryShipGenerator] Used fallback boundary: {usedFallbackBoundary}");
         Debug.Log($"[BoundaryShipGenerator] Ship tier selected: {CurrentTier}");
 
-        SpawnDeck();
-        SpawnRailings();
-        SpawnStations();
+        if (IsTinyRaft)
+        {
+            Debug.Log("[BoundaryShipGenerator] Tiny play area detected – generating yellow raft with no railings.");
+            SpawnTinyYellowRaft();
+        }
+        else
+        {
+            SpawnDeck();
+            SpawnRailings();
+            SpawnStations();
+        }
 
         ShipStormMotionController stormMotionController = GetComponent<ShipStormMotionController>();
         if (stormMotionController != null)
@@ -151,6 +179,20 @@ public class BoundaryShipGenerator : MonoBehaviour
     private void ApplyFallback()
     {
         usedFallbackBoundary = true;
+
+#if UNITY_EDITOR
+        if (randomizeEditorFallbackBoundary && Application.isPlaying)
+        {
+            float min = Mathf.Max(0.5f, randomFallbackMin);
+            float max = Mathf.Max(min, randomFallbackMax);
+            DetectedWidth = UnityEngine.Random.Range(min, max);
+            DetectedDepth = UnityEngine.Random.Range(min, max);
+            editorFallbackWidth = DetectedWidth;
+            editorFallbackDepth = DetectedDepth;
+            return;
+        }
+#endif
+
         DetectedWidth = Mathf.Max(0.5f, editorFallbackWidth);
         DetectedDepth = Mathf.Max(0.5f, editorFallbackDepth);
     }
@@ -394,11 +436,47 @@ public class BoundaryShipGenerator : MonoBehaviour
     {
         Debug.Log("[BoundaryShipGenerator] Generating Dinghy stations.");
 
-        SpawnStation(cannonForwardPrefab, new Vector3(0f, 0f, 0.35f), 0f, "CannonForward");
-        SpawnStation(spyglassPrefab, new Vector3(0.25f, 0f, 0.15f), 0f, "Spyglass");
-        SpawnStation(oarPrefab, new Vector3(-0.25f, 0f, 0f), 90f, "OarLeft");
-        SpawnStation(oarPrefab, new Vector3(0.25f, 0f, 0f), -90f, "OarRight");
-        SpawnStation(ammoCratePrefab, new Vector3(0f, 0f, -0.25f), 0f, "AmmoCrate");
+        float hw = UsableWidth * 0.5f;
+        float hd = UsableDepth * 0.5f;
+
+        SpawnStation(cannonForwardPrefab, new Vector3(0f, 0f, hd * 0.45f), 0f, "CannonForward");
+        SpawnStation(spyglassPrefab, new Vector3(hw * 0.35f, 0f, hd * 0.15f), 0f, "Spyglass");
+        SpawnStation(oarPrefab, new Vector3(-hw * 0.45f, 0f, 0f), 90f, "OarLeft");
+        SpawnStation(oarPrefab, new Vector3(hw * 0.45f, 0f, 0f), -90f, "OarRight");
+        SpawnStation(ammoCratePrefab, new Vector3(0f, 0f, -hd * 0.35f), 0f, "AmmoCrate");
+    }
+
+    private void SpawnTinyYellowRaft()
+    {
+        float raftWidth = Mathf.Max(0.55f, UsableWidth);
+        float raftDepth = Mathf.Max(0.55f, UsableDepth);
+
+        CreatePlaceholderPart(
+            "YellowRaft_Base",
+            PrimitiveType.Cube,
+            new Vector3(0f, 0.02f, 0f),
+            Quaternion.identity,
+            new Vector3(raftWidth, 0.08f, raftDepth),
+            Color.yellow);
+
+        CreatePlaceholderPart(
+            "YellowRaft_FrontTube",
+            PrimitiveType.Cylinder,
+            new Vector3(0f, 0.1f, raftDepth * 0.5f),
+            Quaternion.Euler(0f, 0f, 90f),
+            new Vector3(0.09f, raftWidth * 0.5f, 0.09f),
+            new Color(1f, 0.85f, 0.05f));
+
+        CreatePlaceholderPart(
+            "YellowRaft_BackTube",
+            PrimitiveType.Cylinder,
+            new Vector3(0f, 0.1f, -raftDepth * 0.5f),
+            Quaternion.Euler(0f, 0f, 90f),
+            new Vector3(0.09f, raftWidth * 0.5f, 0.09f),
+            new Color(1f, 0.85f, 0.05f));
+
+        SpawnStation(oarPrefab, new Vector3(-raftWidth * 0.3f, 0.03f, 0f), 90f, "OarLeft");
+        SpawnStation(oarPrefab, new Vector3(raftWidth * 0.3f, 0.03f, 0f), -90f, "OarRight");
     }
 
     private void SpawnRowboat()
@@ -489,13 +567,46 @@ public class BoundaryShipGenerator : MonoBehaviour
         if (prefab == null)
         {
             GameObject marker = SpawnPlaceholderStation(localPos, yaw, label);
+            EnableSpawnedStation(marker, scalePrefab: false);
             Debug.Log($"[BoundaryShipGenerator] Station '{label}': prefab not assigned – spawned placeholder.");
             return marker;
         }
 
         GameObject obj = SpawnPrefab(prefab, localPos, Quaternion.Euler(0f, yaw, 0f), label);
+        EnableSpawnedStation(obj, scalePrefab: true);
         Debug.Log($"[BoundaryShipGenerator] Station '{label}' spawned at {localPos}.");
         return obj;
+    }
+
+    private void EnableSpawnedStation(GameObject station, bool scalePrefab)
+    {
+        if (station == null || !forceEnableSpawnedStations)
+        {
+            return;
+        }
+
+        station.SetActive(true);
+
+        foreach (Transform child in station.GetComponentsInChildren<Transform>(true))
+        {
+            child.gameObject.SetActive(true);
+        }
+
+        if (scalePrefab)
+        {
+            float scale = Mathf.Max(0.01f, stationPrefabScaleMultiplier);
+            station.transform.localScale = station.transform.localScale * scale;
+        }
+
+        foreach (Renderer renderer in station.GetComponentsInChildren<Renderer>(true))
+        {
+            renderer.enabled = true;
+        }
+
+        foreach (Collider collider in station.GetComponentsInChildren<Collider>(true))
+        {
+            collider.enabled = true;
+        }
     }
 
     private GameObject SpawnPlaceholderStation(Vector3 localPos, float yaw, string label)
@@ -535,6 +646,7 @@ public class BoundaryShipGenerator : MonoBehaviour
         obj.name = objName;
         obj.transform.localPosition = localPos;
         obj.transform.localRotation = localRot;
+        obj.SetActive(true);
         return obj;
     }
 

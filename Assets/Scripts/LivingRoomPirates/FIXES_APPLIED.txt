@@ -1,0 +1,19 @@
+Living Room Pirates fixes applied by ChatGPT
+
+Changed files:
+- Core/BoundaryShipGenerator.cs
+- Ocean/OceanStormSettings.cs
+- Ocean/OceanWorldController.cs
+
+Fixes:
+1. HeavySwell waveHeight is now 4.14f so controller-driven waves no longer override the desired amplitude with 2.4f.
+2. OceanWorldController.Update now calls UpdateShipVisualMotion(), so pitch/roll/bob logic actually runs.
+3. Water1 vertical follow defaults changed from -1.0f offset / 0f follow strength to -0.05f offset / 12f follow strength.
+4. BoundaryShipGenerator now treats usable areas under tinyRaftThreshold=1.0f as a yellow raft with no railings and no wooden deck.
+5. Dinghy station positions now scale from usable width/depth instead of hardcoded tiny offsets.
+6. Spawned station prefabs are forced active, their inactive children are activated, renderers/colliders are enabled, and prefab station scale is multiplied by stationPrefabScaleMultiplier=2.0f.
+
+Inspector notes:
+- If real cannon firing still does not work, the cannon prefab still needs CannonController.firePoint and cannonballPrefab assigned.
+- If the generated station prefabs are now too large, reduce stationPrefabScaleMultiplier on BoundaryShipGenerator.
+- If water sits slightly too high/low, tune OceanWorldController.waterOneHeightOffset around -0.10f to 0.05f.

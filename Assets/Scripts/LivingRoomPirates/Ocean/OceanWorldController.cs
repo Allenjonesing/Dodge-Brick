@@ -1,5 +1,6 @@
 using UnityEngine;
 
+[DefaultExecutionOrder(100)]
 public class OceanWorldController : MonoBehaviour
 {
     public static OceanWorldController Instance { get; private set; }
@@ -14,9 +15,28 @@ public class OceanWorldController : MonoBehaviour
     public bool closeWaterOneGapToShip = true;
     public Transform waterOneFollowTarget;
     public bool useVisualShipBoundsBottomAsWaterOneTarget = true;
-    public float waterOneHeightOffset = -1.0f;
+    [Tooltip("Legacy extra water-root offset. Leave at 0 and use shipToOceanSnapHeightOffset below for the ship/ocean gap.")]
+    public float waterOneHeightOffset = 0f;
+    [Tooltip("<= 0 means snap instantly. Positive values smooth the vertical water root movement.")]
     public float waterOneFollowStrength = 0f;
-    public bool useShipFootprintSamplesForWaterOne = true;
+    [Tooltip("When true, SampleHeight uses Water1/OceanWaveMeshDeformer values instead of OceanStormSettings, so inspector wave values are authoritative.")]
+    public bool sampleFromWaterOneDeformer = true;
+    [Tooltip("Default false: use one stable sample at the ship center. Footprint sampling can over-correct if bounds include rails/stations/debug objects.")]
+    public bool useShipFootprintSamplesForWaterOne = false;
+    [Tooltip("Extra debug lift. Negative lowers water relative to hull, making the stationary ship appear slightly raised.")]
+    public float shipToOceanSnapHeightOffset = -0.05f;
+    [Tooltip("Use the actual deformed mesh vertices from the Water1_Tile_* renderers. This makes ships, debris, and cannonballs match what is visibly rendered instead of an approximation.")]
+    public bool sampleFromRenderedWaterOneMesh = false;
+    [Tooltip("Maximum horizontal search distance for nearest rendered Water1 vertex. If too small, falls back to wave math.")]
+    public float renderedSurfaceSearchRadius = 80f;
+    [Tooltip("Authoritative Water1 contact sampler. Usually auto-resolved from Water1.")]
+    public AuthoritativeOceanSurface authoritativeSurface;
+
+    [Header("Water 1 Alignment Debug")]
+    public bool logWaterOneSnapDebug = false;
+    public float waterOneSnapDebugInterval = 1f;
+
+    private float _nextWaterOneSnapDebugTime;
 
     [Header("Storm")]
     public StormMotionPreset preset = StormMotionPreset.HeavySwell;
@@ -32,6 +52,12 @@ public class OceanWorldController : MonoBehaviour
     public Vector2 oceanOffset;
     public float shipHeadingDegrees;
 
+    [Header("Water Escalator Travel")]
+    [Tooltip("Moves the ocean/water under the locked ship. The ship itself never moves.")]
+    public bool enableWaterEscalatorTravel = true;
+    public float waterEscalatorSpeed = 1.4f;
+    public Vector2 waterEscalatorDirection = new Vector2(0f, 1f);
+
     private OceanStormSettings _settings;
     private Renderer[] _waterOneFollowRenderers;
     private Transform _waterOneFollowRendererRoot;
@@ -42,6 +68,7 @@ public class OceanWorldController : MonoBehaviour
     {
         Instance = this;
         ApplyPreset();
+        ResolveAuthoritativeSurface();
     }
 
     private void OnDestroy()
@@ -59,8 +86,17 @@ public class OceanWorldController : MonoBehaviour
             ApplyPreset();
         }
 
+        ResolveAuthoritativeSurface();
+
         UpdateFakeTravel();
-        UpdateWaterRoots();
+        LockShipVisualRoot();
+        UpdateWaterRoots(false);
+    }
+
+    private void LateUpdate()
+    {
+        LockShipVisualRoot();
+        UpdateWaterRoots(true);
     }
 
     public void ApplyPreset()
@@ -70,66 +106,55 @@ public class OceanWorldController : MonoBehaviour
 
     private void UpdateFakeTravel()
     {
-        float forwardInput = Input.GetKey(KeyCode.W) ? 1f : 0f;
-        float reverseInput = Input.GetKey(KeyCode.S) ? -0.5f : 0f;
-        float turnInput = 0f;
+        // Living Room Pirates is room-scale. The player/ship must never be moved
+        // or rotated by the ocean system. Instead, the ocean offset moves the
+        // Water1 grid under the stationary ship like an escalator/conveyor.
+        simulatedVelocity = Vector2.zero;
+        shipHeadingDegrees = 0f;
 
-        if (Input.GetKey(KeyCode.A)) turnInput -= 1f;
-        if (Input.GetKey(KeyCode.D)) turnInput += 1f;
+        if (!enableWaterEscalatorTravel)
+        {
+            return;
+        }
 
-        shipHeadingDegrees += turnInput * turnSpeed * Time.deltaTime;
+        Vector2 direction = waterEscalatorDirection.sqrMagnitude > 0.0001f
+            ? waterEscalatorDirection.normalized
+            : Vector2.up;
 
-        Vector2 forward = HeadingToVector(shipHeadingDegrees);
-        float throttle = forwardInput + reverseInput;
-
-        simulatedVelocity += forward * throttle * acceleration * Time.deltaTime;
-        simulatedVelocity = Vector2.ClampMagnitude(simulatedVelocity, maxSpeed);
-        simulatedVelocity = Vector2.Lerp(simulatedVelocity, Vector2.zero, Time.deltaTime * 0.35f);
-
-        oceanOffset += simulatedVelocity * Time.deltaTime;
+        oceanOffset += direction * waterEscalatorSpeed * Time.deltaTime;
     }
 
-    private void UpdateShipVisualMotion()
+    private void LockShipVisualRoot()
     {
         if (visualShipRoot == null)
         {
             return;
         }
 
-        float t = Time.timeSinceLevelLoad;
-
-        float pitch = Mathf.Sin(t * _settings.waveSpeed * 7.1f + seed) * _settings.shipPitchDegrees;
-        float roll = Mathf.Sin(t * _settings.waveSpeed * 8.3f + seed * 0.7f) * _settings.shipRollDegrees;
-        float bob = Mathf.Sin(t * _settings.waveSpeed * 6.2f + seed * 0.31f) * _settings.shipBobHeight;
-
-        visualShipRoot.localPosition = new Vector3(0f, bob, 0f);
-        visualShipRoot.localRotation = Quaternion.Euler(pitch, 0f, roll);
+        visualShipRoot.localPosition = Vector3.zero;
+        visualShipRoot.localRotation = Quaternion.identity;
     }
 
-    private void UpdateWaterRoots()
+    private void UpdateWaterRoots(bool updateHeight)
     {
-        Vector3 oppositeMovement = new Vector3(-oceanOffset.x, 0f, -oceanOffset.y);
-
+        // Keep the ocean root itself locked. Earlier debug builds moved OceanWorldRoot,
+        // which made it look like one Water1 plane was sliding while the cloned tiles
+        // sat around as a strange blue grid. The WaterOneGrid3x3 component now moves
+        // and recycles the individual Water1 visual tiles instead.
         if (oceanWorldRoot != null)
         {
-            oceanWorldRoot.localPosition = oppositeMovement;
-            oceanWorldRoot.localRotation = Quaternion.Euler(0f, -shipHeadingDegrees, 0f);
+            oceanWorldRoot.localRotation = Quaternion.identity;
         }
 
-        if (waterTwo != null && visualShipRoot != null)
+        if (waterTwo != null)
         {
-            Vector3 shipEuler = visualShipRoot.localEulerAngles;
-            float pitch = NormalizeAngle(shipEuler.x);
-            float roll = NormalizeAngle(shipEuler.z);
-
-            waterTwo.localRotation = Quaternion.Euler(
-                -pitch * _settings.horizonPitchCancel,
-                0f,
-                -roll * _settings.horizonRollCancel
-            );
+            waterTwo.localRotation = Quaternion.identity;
         }
 
-        UpdateWaterOneHeight();
+        if (updateHeight)
+        {
+            UpdateWaterOneHeight();
+        }
     }
 
     private void UpdateWaterOneHeight()
@@ -159,6 +184,12 @@ public class OceanWorldController : MonoBehaviour
         }
 
         waterOne.position = waterPosition;
+
+        if (logWaterOneSnapDebug && Time.time >= _nextWaterOneSnapDebugTime)
+        {
+            _nextWaterOneSnapDebugTime = Time.time + Mathf.Max(0.1f, waterOneSnapDebugInterval);
+            Debug.Log($"[OceanWorldController] Water1 rootY={waterOne.position.y:F3}, targetRootY={targetWaterHeight.Value:F3}, offset={shipToOceanSnapHeightOffset:F3}", this);
+        }
     }
 
     private float? ResolveTargetWaterOneHeight()
@@ -192,6 +223,10 @@ public class OceanWorldController : MonoBehaviour
             return ComputeTargetWaterHeightAtPoint(visualShipRoot.position);
         }
 
+        // Stable default: solve water-root Y so the visible wave surface directly
+        // under the center of the ship bottom matches the bottom contact height.
+        // This avoids a bad feedback loop where far-away rails, generated debug
+        // objects, or ocean tiles distort the bounds/footprint calculation.
         if (!useShipFootprintSamplesForWaterOne)
         {
             Vector3 anchorPosition = shipBounds.Value.center;
@@ -260,8 +295,30 @@ public class OceanWorldController : MonoBehaviour
 
     private float ComputeTargetWaterHeightAtPoint(Vector3 point)
     {
-        float surfaceHeight = SampleHeight(point) * GetWaterOneVerticalScale();
-        return point.y + waterOneHeightOffset - surfaceHeight;
+        ResolveAuthoritativeSurface();
+        float offset = waterOneHeightOffset + shipToOceanSnapHeightOffset;
+        if (authoritativeSurface != null)
+        {
+            return authoritativeSurface.SolveWaterRootYForContact(point, offset);
+        }
+
+        float waveOffset = SampleWaterOffsetOnly(point);
+        return point.y + offset - waveOffset;
+    }
+
+    private float SampleWaterOneSurfaceOffset(Vector3 point)
+    {
+        if (waterOne != null)
+        {
+            OceanWaveMeshDeformer deformer = waterOne.GetComponent<OceanWaveMeshDeformer>();
+
+            if (deformer != null)
+            {
+                return deformer.SampleHeightAtWorldPosition(point);
+            }
+        }
+
+        return SampleHeight(point) * GetWaterOneVerticalScale();
     }
 
     private float GetWaterOneVerticalScale()
@@ -317,7 +374,7 @@ public class OceanWorldController : MonoBehaviour
         {
             Renderer renderer = renderers[i];
 
-            if (renderer == null || !renderer.enabled)
+            if (renderer == null || !renderer.enabled || ShouldIgnoreRendererForShipContact(renderer))
             {
                 continue;
             }
@@ -335,6 +392,28 @@ public class OceanWorldController : MonoBehaviour
         return foundRenderer ? bounds : (Bounds?)null;
     }
 
+    private static bool ShouldIgnoreRendererForShipContact(Renderer renderer)
+    {
+        if (renderer == null)
+        {
+            return true;
+        }
+
+        Transform t = renderer.transform;
+        while (t != null)
+        {
+            string name = t.name.ToLowerInvariant();
+            if (name.Contains("water") || name.Contains("ocean") || name.Contains("boundarydebug") || name.Contains("debug"))
+            {
+                return true;
+            }
+
+            t = t.parent;
+        }
+
+        return false;
+    }
+
     private Renderer[] GetWaterOneFollowRenderers()
     {
         if (_waterOneFollowRendererRoot != visualShipRoot || _waterOneFollowRenderers == null)
@@ -350,8 +429,113 @@ public class OceanWorldController : MonoBehaviour
 
     public float SampleHeight(Vector3 worldPosition)
     {
+        ResolveAuthoritativeSurface();
+        if (authoritativeSurface != null)
+        {
+            return authoritativeSurface.SampleSurfaceY(worldPosition);
+        }
+
+        if (sampleFromWaterOneDeformer && waterOne != null)
+        {
+            OceanWaveMeshDeformer deformer = waterOne.GetComponent<OceanWaveMeshDeformer>();
+            if (deformer != null)
+            {
+                return waterOne.position.y + deformer.SampleWaveOffsetWorld(worldPosition);
+            }
+        }
+
+        if (sampleFromRenderedWaterOneMesh)
+        {
+            float renderedY;
+            if (TrySampleRenderedWaterOneSurface(worldPosition, out renderedY))
+            {
+                return renderedY;
+            }
+        }
+
         Vector3 oceanSpace = WorldToOceanSpace(worldPosition);
         return SampleHeightOceanSpace(oceanSpace.x, oceanSpace.z);
+    }
+
+    public float SampleWaterOffsetOnly(Vector3 worldPosition)
+    {
+        ResolveAuthoritativeSurface();
+        if (authoritativeSurface != null)
+        {
+            return authoritativeSurface.SampleWaveOffset(worldPosition);
+        }
+
+        if (sampleFromWaterOneDeformer && waterOne != null)
+        {
+            OceanWaveMeshDeformer deformer = waterOne.GetComponent<OceanWaveMeshDeformer>();
+            if (deformer != null)
+            {
+                return deformer.SampleWaveOffsetWorld(worldPosition);
+            }
+        }
+
+        Vector3 oceanSpace = WorldToOceanSpace(worldPosition);
+        return SampleHeightOceanSpace(oceanSpace.x, oceanSpace.z);
+    }
+
+    public bool TrySampleRenderedWaterOneSurface(Vector3 worldPosition, out float surfaceY)
+    {
+        surfaceY = 0f;
+        if (waterOne == null)
+        {
+            return false;
+        }
+
+        MeshFilter[] filters = waterOne.GetComponentsInChildren<MeshFilter>();
+        float bestDistanceSq = float.MaxValue;
+        float bestY = 0f;
+        float maxDistanceSq = Mathf.Max(0.01f, renderedSurfaceSearchRadius * renderedSurfaceSearchRadius);
+
+        for (int f = 0; f < filters.Length; f++)
+        {
+            MeshFilter filter = filters[f];
+            if (filter == null || filter.sharedMesh == null)
+            {
+                continue;
+            }
+
+            Renderer renderer = filter.GetComponent<Renderer>();
+            if (renderer != null && !renderer.enabled)
+            {
+                continue;
+            }
+
+            string n = filter.name;
+            if (filter.transform != waterOne && !n.StartsWith("Water1_Tile_"))
+            {
+                continue;
+            }
+
+            Vector3[] vertices = filter.sharedMesh.vertices;
+            Transform t = filter.transform;
+
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                Vector3 w = t.TransformPoint(vertices[i]);
+                float dx = w.x - worldPosition.x;
+                float dz = w.z - worldPosition.z;
+                float d = dx * dx + dz * dz;
+
+                if (d < bestDistanceSq)
+                {
+                    bestDistanceSq = d;
+                    bestY = w.y;
+                }
+            }
+        }
+
+        if (bestDistanceSq <= maxDistanceSq)
+        {
+            surfaceY = bestY;
+            return true;
+        }
+
+        return false;
     }
 
     public Vector3 SampleNormal(Vector3 worldPosition)
@@ -389,6 +573,8 @@ public class OceanWorldController : MonoBehaviour
             ApplyPreset();
         }
 
+        ResolveAuthoritativeSurface();
+
         float t = Time.timeSinceLevelLoad;
 
         float primary = Mathf.Sin(
@@ -413,6 +599,23 @@ public class OceanWorldController : MonoBehaviour
         wave += diagonal * (_settings.secondaryBlend * 0.5f);
 
         return wave * _settings.waveHeight;
+    }
+
+    private void ResolveAuthoritativeSurface()
+    {
+        if (authoritativeSurface != null)
+        {
+            return;
+        }
+
+        if (waterOne != null)
+        {
+            authoritativeSurface = waterOne.GetComponent<AuthoritativeOceanSurface>();
+            if (authoritativeSurface == null)
+            {
+                authoritativeSurface = waterOne.gameObject.AddComponent<AuthoritativeOceanSurface>();
+            }
+        }
     }
 
     private static Vector2 HeadingToVector(float degrees)
@@ -565,7 +768,21 @@ public class ShipStormMotionController : MonoBehaviour
 
         if (deformer != null)
         {
-            deformer.useControllerSettings = true;
+            // Do not override user-assigned wave values. The deformer is the source of truth.
+            deformer.useWorldSpaceWaveCoordinates = true;
+        }
+
+        WaterOneGrid3x3 grid = waterTransform.GetComponent<WaterOneGrid3x3>();
+        if (grid == null)
+        {
+            grid = waterTransform.gameObject.AddComponent<WaterOneGrid3x3>();
+        }
+
+        grid.gridRadius = 1;
+        grid.buildOnStart = true;
+        if (Application.isPlaying)
+        {
+            grid.BuildGrid();
         }
     }
 }

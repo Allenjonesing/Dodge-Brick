@@ -1,0 +1,6 @@
+ROUND 4 FIXES
+
+- Fixed Photon NullReferenceException from PhotonNetwork.AddCallbackTarget.
+- ShipStationNetwork no longer inherits MonoBehaviourPunCallbacks in offline/debug mode.
+- Removed OnEnable/OnDisable callback registration so Photon cannot initialize callbacks before the debug bootstrap disables networking.
+- Networking remains disabled for now; local station/debug systems continue to run.

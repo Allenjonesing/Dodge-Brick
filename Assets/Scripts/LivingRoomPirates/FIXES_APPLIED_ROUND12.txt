@@ -1,0 +1,9 @@
+Round 12 changes:
+- Removed/deactivated Water2 by default; only Water1 is used for the visible/deforming ocean.
+- Removed primitive enemy raft debug spawning by default.
+- Added LivingRoomPiratesSurfaceDebugSandbox: one combined debug overlay and controls.
+- Added visible primitive cannonballs, smoke/boom flash, water splash impacts, and cannonball piles.
+- Added working T sail toggle and R anchor toggle.
+- Added floating surface props that follow the deforming Water1 surface.
+- Added water escalator travel: ship remains locked, ocean/water moves underneath, Water1 visual tiles recycle around the ship.
+- WaterOneGrid3x3 now generates all 9 visual tiles as children and hides the root renderer so every visible tile can recycle.

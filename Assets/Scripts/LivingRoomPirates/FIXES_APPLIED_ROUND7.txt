@@ -1,0 +1,7 @@
+Round 7 fixes:
+- Water1 snap now defaults to a single stable ship-center contact sample instead of the 9-point footprint mode.
+- The footprint mode was too easy to over-correct when ship bounds included rails, stations, debug objects, or accidentally included ocean/water renderers.
+- Ship bounds now explicitly ignore renderers whose hierarchy names include water, ocean, boundarydebug, or debug.
+- Editor auto-activator forces useShipFootprintSamplesForWaterOne = false.
+- Added optional OceanWorldController.logWaterOneSnapDebug for observing target/root Y values.
+- Ship remains locked in position and rotation. Water1 root is what moves vertically.

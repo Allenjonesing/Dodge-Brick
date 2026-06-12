@@ -4,7 +4,7 @@ using UnityEngine;
 public class WaterPlaneWaveDeformer : MonoBehaviour
 {
     [Range(0f, 4f)]
-    public float heightAmplitude = 0.89f;
+    public float heightAmplitude = 4.14f;
 
     [Range(0.005f, 1f)]
     public float primaryFrequency = 0.11f;

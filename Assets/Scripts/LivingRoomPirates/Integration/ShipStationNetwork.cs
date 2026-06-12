@@ -25,8 +25,10 @@ using ExitGames.Client.Photon;
 //   Event codes are defined as byte constants below.  Use custom Photon
 //   event codes in the range 1–199 (Photon reserves 200+).
 // ---------------------------------------------------------------------------
-public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
+public class ShipStationNetwork : MonoBehaviour
 {
+    [Header("Debug / Offline")]
+    public bool networkingDisabled = true;
     // -----------------------------------------------------------------------
     // Photon custom event codes (1–199)
     // -----------------------------------------------------------------------
@@ -53,22 +55,17 @@ public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
     }
 
     // -----------------------------------------------------------------------
-    // IOnEventCallback registration
+    // Networking is intentionally offline for the current local prototype.
+    //
+    // IMPORTANT:
+    // This class must NOT inherit MonoBehaviourPunCallbacks while offline.
+    // PUN's base OnEnable() calls PhotonNetwork.AddCallbackTarget(this) before
+    // our debug bootstrap can disable components, which can throw a
+    // NullReferenceException when Photon is not initialized in editor/local mode.
+    //
+    // When multiplayer is restored later, reintroduce IOnEventCallback registration
+    // only after PhotonNetwork.NetworkingClient is valid and connected.
     // -----------------------------------------------------------------------
-
-    // MonoBehaviourPunCallbacks does not declare OnEnable/OnDisable as virtual,
-    // so we use 'new' (hiding) rather than 'override' to avoid a compile error.
-    public new void OnEnable()
-    {
-        base.OnEnable();
-        PhotonNetwork.AddCallbackTarget(this);
-    }
-
-    public new void OnDisable()
-    {
-        base.OnDisable();
-        PhotonNetwork.RemoveCallbackTarget(this);
-    }
 
     // -----------------------------------------------------------------------
     // Send helpers (called by local station scripts)
@@ -83,6 +80,11 @@ public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
     /// <param name="firePower">Normalised fire power 0–1.</param>
     public void SendCannonFired(string shipSide, int stationIndex, float aimYaw, float firePower)
     {
+        if (networkingDisabled)
+        {
+            Debug.Log("[ShipStationNetwork] Networking disabled; local action not sent.");
+            return;
+        }
         object[] data = new object[]
         {
             PhotonNetwork.LocalPlayer.ActorNumber,
@@ -105,6 +107,11 @@ public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
     /// <param name="hitPosition">Approximate world-space impact position (local ship coords).</param>
     public void SendCannonballHit(string hitType, Vector3 hitPosition)
     {
+        if (networkingDisabled)
+        {
+            Debug.Log("[ShipStationNetwork] Networking disabled; local action not sent.");
+            return;
+        }
         object[] data = new object[]
         {
             PhotonNetwork.LocalPlayer.ActorNumber,
@@ -127,6 +134,11 @@ public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
     /// <param name="repairAmount">HP or percentage repaired.</param>
     public void SendRepairAction(string repairStation, float repairAmount)
     {
+        if (networkingDisabled)
+        {
+            Debug.Log("[ShipStationNetwork] Networking disabled; local action not sent.");
+            return;
+        }
         object[] data = new object[]
         {
             PhotonNetwork.LocalPlayer.ActorNumber,
@@ -146,6 +158,11 @@ public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
     /// <param name="isAnchored">True = dropped, false = raised.</param>
     public void SendAnchorAction(bool isAnchored)
     {
+        if (networkingDisabled)
+        {
+            Debug.Log("[ShipStationNetwork] Networking disabled; local action not sent.");
+            return;
+        }
         object[] data = new object[]
         {
             PhotonNetwork.LocalPlayer.ActorNumber,
@@ -165,6 +182,11 @@ public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
     /// <param name="openAmount">Normalised sail openness 0–1.</param>
     public void SendSailAction(int sailIndex, float openAmount)
     {
+        if (networkingDisabled)
+        {
+            Debug.Log("[ShipStationNetwork] Networking disabled; local action not sent.");
+            return;
+        }
         object[] data = new object[]
         {
             PhotonNetwork.LocalPlayer.ActorNumber,
@@ -193,6 +215,10 @@ public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
         Vector3 leftHandPos,  Quaternion leftHandRot,
         Vector3 rightHandPos, Quaternion rightHandRot)
     {
+        if (networkingDisabled)
+        {
+            return;
+        }
         object[] data = new object[]
         {
             PhotonNetwork.LocalPlayer.ActorNumber,
@@ -215,6 +241,10 @@ public class ShipStationNetwork : MonoBehaviourPunCallbacks, IOnEventCallback
 
     public void OnEvent(EventData photonEvent)
     {
+        if (networkingDisabled)
+        {
+            return;
+        }
         switch (photonEvent.Code)
         {
             case EVENT_CANNON_FIRED:
