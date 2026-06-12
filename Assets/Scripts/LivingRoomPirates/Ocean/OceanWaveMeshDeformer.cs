@@ -6,9 +6,9 @@ public class OceanWaveMeshDeformer : MonoBehaviour
     [Header("Overrides")]
     public bool useControllerSettings = false;
 
-    public float heightAmplitude = 1.63f;
-    public float spatialFrequency = 1.01f;
-    public float primaryFrequency = 0.05f;
+    public float heightAmplitude = 4.14f;
+    public float spatialFrequency = 0.69f;
+    public float primaryFrequency = 0.02f;
     public float secondaryBlend = 0.51f;
     public float secondaryFrequency = 0.24f;
     public int seed = 17;
