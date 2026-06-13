@@ -11,7 +11,9 @@ public class WaterOneGrid3x3 : MonoBehaviour
     [Header("Grid")]
     public int gridRadius = 1;
     [Tooltip("World-space width/depth of one Water1 tile. If <= 0, this is estimated from the renderer bounds.")]
-    public float tileSize = 0f;
+    public float tileSize = 40f;
+    [Tooltip("When true, generated visual tiles are scaled to tileSize even if the scene Water1 plane was left at Scale 1 with a 10m Unity plane mesh.")]
+    public bool codeOwnsTileScale = true;
     public bool buildOnStart = true;
     public bool rebuildIfTileSizeChanges = false;
 
@@ -160,7 +162,7 @@ public class WaterOneGrid3x3 : MonoBehaviour
         float sz = Mathf.Abs(transform.lossyScale.z) > 0.0001f ? Mathf.Abs(transform.lossyScale.z) : 1f;
         tile.transform.localPosition = new Vector3((x * resolvedTileSize) / sx, 0f, (z * resolvedTileSize) / sz);
         tile.transform.localRotation = Quaternion.identity;
-        tile.transform.localScale = Vector3.one;
+        tile.transform.localScale = ResolveTileLocalScale(sourceMesh, resolvedTileSize);
 
         MeshFilter meshFilter = tile.AddComponent<MeshFilter>();
         meshFilter.sharedMesh = sourceMesh.sharedMesh;
@@ -182,6 +184,27 @@ public class WaterOneGrid3x3 : MonoBehaviour
 
         OceanWaveMeshDeformer deformer = tile.AddComponent<OceanWaveMeshDeformer>();
         deformer.CopyWaveSettingsFrom(sourceDeformer);
+    }
+
+
+    private Vector3 ResolveTileLocalScale(MeshFilter sourceMesh, float resolvedTileSize)
+    {
+        if (!codeOwnsTileScale || sourceMesh == null || sourceMesh.sharedMesh == null)
+        {
+            return Vector3.one;
+        }
+
+        Bounds localBounds = sourceMesh.sharedMesh.bounds;
+        float localSize = Mathf.Max(Mathf.Abs(localBounds.size.x), Mathf.Abs(localBounds.size.z));
+        if (localSize <= 0.0001f)
+        {
+            return Vector3.one;
+        }
+
+        // Parent Water1 stays at scale 1. A stock Unity Plane is 10m wide at scale 1,
+        // so a 40m tile becomes local scale 4. A generated 40m mesh becomes scale 1.
+        float scale = resolvedTileSize / localSize;
+        return new Vector3(scale, 1f, scale);
     }
 
     private float ResolveTileSize()

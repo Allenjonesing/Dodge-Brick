@@ -186,6 +186,8 @@ namespace LivingRoomPirates.Demo
             snapper.waterOne = waterOne.transform;
             snapper.ocean = ocean;
             snapper.shipToOceanSnapHeightOffset = -0.05f;
+            snapper.useEightPointHullAverage = true;
+            snapper.hullSampleInsetPercent = 0.12f;
             snapper.enabled = true;
 
             Debug.Log("[LRP PrimitiveSceneInstaller] Installed Living Room Pirates using scene-authored Water1/Water2. Water planes are NOT instantiated. Water1 is the deforming/snap surface; Water2 is a deep backdrop; ship stays locked; WASD moves Water1 tiles under the player.");
@@ -216,6 +218,7 @@ namespace LivingRoomPirates.Demo
             WaterOneGrid3x3 grid = Ensure<WaterOneGrid3x3>(waterOne);
             grid.gridRadius = 1;
             grid.tileSize = 40f;
+            grid.codeOwnsTileScale = true;
             grid.buildOnStart = true;
             grid.waterTravelEnabled = false;
             grid.waterTravelSpeed = 0.8f;

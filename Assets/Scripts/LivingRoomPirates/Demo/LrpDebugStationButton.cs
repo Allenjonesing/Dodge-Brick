@@ -9,7 +9,7 @@ namespace LivingRoomPirates.Demo
     [DisallowMultipleComponent]
     public sealed class LrpDebugStationButton : MonoBehaviour
     {
-        public enum Action { ToggleSail, ToggleAnchor, FireCannons }
+        public enum Action { ToggleSail, ToggleAnchor, FireCannons, RaiseSail, LowerSail, LoadCannons, RepairLeaks }
         public Action action;
         public LivingRoomPiratesSurfaceDebugSandbox sandbox;
 
@@ -41,6 +41,10 @@ namespace LivingRoomPirates.Demo
                 case Action.ToggleSail: sandbox.ToggleSail(); break;
                 case Action.ToggleAnchor: sandbox.ToggleAnchor(); break;
                 case Action.FireCannons: sandbox.FireAllCannonsPublic(); break;
+                case Action.RaiseSail: sandbox.AdjustSailPercent(0.15f); break;
+                case Action.LowerSail: sandbox.AdjustSailPercent(-0.15f); break;
+                case Action.LoadCannons: sandbox.LoadAllCannonsPublic(); break;
+                case Action.RepairLeaks: sandbox.RepairLeaksPublic(); break;
             }
         }
     }

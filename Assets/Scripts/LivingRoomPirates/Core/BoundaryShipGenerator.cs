@@ -46,10 +46,16 @@ public class BoundaryShipGenerator : MonoBehaviour
     public float tinyRaftThreshold = 1.0f;
 
     [Tooltip("Multiplies spawned station prefab scale so wheel/cannons/sail controls are usable in VR.")]
-    public float stationPrefabScaleMultiplier = 2.0f;
+    public float stationPrefabScaleMultiplier = 1.35f;
 
     [Tooltip("Force spawned station prefabs and their renderers/colliders on, even if the source prefab was disabled.")]
     public bool forceEnableSpawnedStations = true;
+
+    [Tooltip("Keeps rails slightly inside the already-safe usable Guardian rectangle so posts never sit exactly on the boundary line.")]
+    public float railInsetFromUsableEdge = 0.08f;
+
+    [Tooltip("Keeps station origins inside the rail line. Large primitives may still face outward, but their handles stay reachable inside the ship.")]
+    public float stationInsideRailInset = 0.30f;
 
     [Header("Boundary Settings")]
     [Tooltip("Metres kept between the generated ship and the real Guardian boundary.")]
@@ -303,11 +309,39 @@ public class BoundaryShipGenerator : MonoBehaviour
         Debug.Log($"[BoundaryShipGenerator] Spawned {tilesX * tilesZ} deck tiles ({tilesX} x {tilesZ}).");
     }
 
+    private float RailHalfWidth()
+    {
+        return Mathf.Max(0.25f, UsableWidth * 0.5f - Mathf.Max(0f, railInsetFromUsableEdge));
+    }
+
+    private float RailHalfDepth()
+    {
+        return Mathf.Max(0.25f, UsableDepth * 0.5f - Mathf.Max(0f, railInsetFromUsableEdge));
+    }
+
+    private Vector3 ClampStationInsideRails(Vector3 localPos)
+    {
+        float inset = Mathf.Max(0.05f, stationInsideRailInset);
+        float maxX = Mathf.Max(0.05f, RailHalfWidth() - inset);
+        float maxZ = Mathf.Max(0.05f, RailHalfDepth() - inset);
+        localPos.x = Mathf.Clamp(localPos.x, -maxX, maxX);
+        localPos.z = Mathf.Clamp(localPos.z, -maxZ, maxZ);
+        return localPos;
+    }
+
+    private float SafeStationScaleMultiplier()
+    {
+        float minDim = Mathf.Min(UsableWidth, UsableDepth);
+        // Bigger/readable in VR on room-scale ships, but automatically shrinks for tiny/rowboat layouts.
+        float fit = Mathf.InverseLerp(1.0f, 3.2f, minDim);
+        return Mathf.Clamp(Mathf.Lerp(0.70f, stationPrefabScaleMultiplier, fit), 0.55f, 2.0f);
+    }
+
     private void SpawnRailings()
     {
-        float hw = UsableWidth * 0.5f;
-        float hd = UsableDepth * 0.5f;
-        float segLen = 1f;
+        float hw = RailHalfWidth();
+        float hd = RailHalfDepth();
+        float segLen = Mathf.Clamp(Mathf.Min(UsableWidth, UsableDepth) * 0.35f, 0.45f, 1f);
 
         if (railingStraightPrefab == null && railingCornerPrefab == null)
         {
@@ -440,7 +474,7 @@ public class BoundaryShipGenerator : MonoBehaviour
         float hd = UsableDepth * 0.5f;
 
         SpawnStation(cannonForwardPrefab, new Vector3(0f, 0f, hd * 0.45f), 0f, "CannonForward");
-        SpawnStation(spyglassPrefab, new Vector3(hw * 0.35f, 0f, hd * 0.15f), 0f, "Spyglass");
+        // Spyglass removed until it has real gameplay.
         SpawnStation(oarPrefab, new Vector3(-hw * 0.45f, 0f, 0f), 90f, "OarLeft");
         SpawnStation(oarPrefab, new Vector3(hw * 0.45f, 0f, 0f), -90f, "OarRight");
         SpawnStation(ammoCratePrefab, new Vector3(0f, 0f, -hd * 0.35f), 0f, "AmmoCrate");
@@ -554,19 +588,22 @@ public class BoundaryShipGenerator : MonoBehaviour
         SpawnStation(sailRopePrefab, new Vector3(-hw * 0.2f, 0f, 0f), 0f, "SailRopePort");
         SpawnStation(sailRopePrefab, new Vector3(hw * 0.2f, 0f, 0f), 0f, "SailRopeStar");
         SpawnStation(mastSmallPrefab, new Vector3(0f, 0f, 0f), 0f, "MastSmall");
-        SpawnStation(spyglassPrefab, new Vector3(-hw * 0.3f, 0f, hd * 0.5f), 0f, "Spyglass");
+        // Spyglass removed until it has real gameplay.
         SpawnStation(ammoCratePrefab, new Vector3(-hw * 0.35f, 0f, 0f), 0f, "AmmoCratePort");
         SpawnStation(ammoCratePrefab, new Vector3(hw * 0.35f, 0f, 0f), 0f, "AmmoCrateStar");
         SpawnStation(repairBucketPrefab, new Vector3(-hw * 0.35f, 0f, -hd * 0.35f), 0f, "RepairPort");
         SpawnStation(repairBucketPrefab, new Vector3(hw * 0.35f, 0f, -hd * 0.35f), 0f, "RepairStar");
-        SpawnStation(treasureChestPrefab, new Vector3(0f, 0f, -hd * 0.55f), 0f, "TreasureChest");
+        // Decorative treasure removed to keep the ship uncluttered.
     }
 
     private GameObject SpawnStation(GameObject prefab, Vector3 localPos, float yaw, string label)
     {
+        localPos = ClampStationInsideRails(localPos);
+
         if (prefab == null)
         {
             GameObject marker = SpawnPlaceholderStation(localPos, yaw, label);
+            ScaleStationForVrAndFit(marker);
             EnableSpawnedStation(marker, scalePrefab: false);
             Debug.Log($"[BoundaryShipGenerator] Station '{label}': prefab not assigned – spawned placeholder.");
             return marker;
@@ -576,6 +613,13 @@ public class BoundaryShipGenerator : MonoBehaviour
         EnableSpawnedStation(obj, scalePrefab: true);
         Debug.Log($"[BoundaryShipGenerator] Station '{label}' spawned at {localPos}.");
         return obj;
+    }
+
+    private void ScaleStationForVrAndFit(GameObject station)
+    {
+        if (station == null) return;
+        float scale = SafeStationScaleMultiplier();
+        station.transform.localScale = station.transform.localScale * scale;
     }
 
     private void EnableSpawnedStation(GameObject station, bool scalePrefab)
@@ -594,7 +638,7 @@ public class BoundaryShipGenerator : MonoBehaviour
 
         if (scalePrefab)
         {
-            float scale = Mathf.Max(0.01f, stationPrefabScaleMultiplier);
+            float scale = SafeStationScaleMultiplier();
             station.transform.localScale = station.transform.localScale * scale;
         }
 
@@ -674,16 +718,18 @@ public class BoundaryShipGenerator : MonoBehaviour
 
     private void SpawnPlaceholderDeck()
     {
-        float hullWidth = Mathf.Max(0.9f, UsableWidth + 0.25f);
-        float hullDepth = Mathf.Max(0.9f, UsableDepth + 0.35f);
+        float deckWidth = Mathf.Max(0.5f, RailHalfWidth() * 2f);
+        float deckDepth = Mathf.Max(0.5f, RailHalfDepth() * 2f);
+        float hullWidth = Mathf.Max(0.9f, deckWidth + 0.20f);
+        float hullDepth = Mathf.Max(0.9f, deckDepth + 0.28f);
 
         CreatePlaceholderPart("HullShadow", PrimitiveType.Cube, new Vector3(0f, -0.08f, 0f), Quaternion.identity, new Vector3(hullWidth * 0.92f, 0.04f, hullDepth * 0.92f), new Color(0.12f, 0.09f, 0.06f));
         CreatePlaceholderPart("HullBase", PrimitiveType.Cube, new Vector3(0f, -0.03f, 0f), Quaternion.identity, new Vector3(hullWidth * 0.8f, 0.22f, hullDepth * 0.86f), new Color(0.24f, 0.16f, 0.1f));
-        CreatePlaceholderPart("DeckSurface", PrimitiveType.Cube, new Vector3(0f, 0.03f, 0f), Quaternion.identity, new Vector3(UsableWidth, 0.06f, UsableDepth), new Color(0.56f, 0.43f, 0.24f));
+        CreatePlaceholderPart("DeckSurface", PrimitiveType.Cube, new Vector3(0f, 0.03f, 0f), Quaternion.identity, new Vector3(deckWidth, 0.06f, deckDepth), new Color(0.56f, 0.43f, 0.24f));
 
-        float plankWidth = Mathf.Clamp(UsableWidth / 5f, 0.18f, 0.5f);
-        int plankCount = Mathf.Max(3, Mathf.RoundToInt(UsableWidth / plankWidth));
-        float plankStart = -UsableWidth * 0.5f + plankWidth * 0.5f;
+        float plankWidth = Mathf.Clamp(deckWidth / 5f, 0.18f, 0.5f);
+        int plankCount = Mathf.Max(3, Mathf.RoundToInt(deckWidth / plankWidth));
+        float plankStart = -deckWidth * 0.5f + plankWidth * 0.5f;
 
         for (int i = 0; i < plankCount; i++)
         {
@@ -693,12 +739,12 @@ public class BoundaryShipGenerator : MonoBehaviour
                 PrimitiveType.Cube,
                 new Vector3(x, 0.065f, 0f),
                 Quaternion.identity,
-                new Vector3(plankWidth - 0.02f, 0.01f, UsableDepth * 0.98f),
+                new Vector3(plankWidth - 0.02f, 0.01f, deckDepth * 0.98f),
                 i % 2 == 0 ? new Color(0.62f, 0.49f, 0.28f) : new Color(0.52f, 0.38f, 0.2f));
         }
 
-        float bowZ = UsableDepth * 0.5f + 0.12f;
-        float sternZ = -UsableDepth * 0.5f - 0.12f;
+        float bowZ = deckDepth * 0.5f + 0.12f;
+        float sternZ = -deckDepth * 0.5f - 0.12f;
 
         CreatePlaceholderPart("BowCap", PrimitiveType.Cylinder, new Vector3(0f, 0.07f, bowZ), Quaternion.Euler(90f, 0f, 0f), new Vector3(hullWidth * 0.22f, 0.12f, 0.12f), new Color(0.34f, 0.22f, 0.13f));
         CreatePlaceholderPart("SternCap", PrimitiveType.Cube, new Vector3(0f, 0.1f, sternZ), Quaternion.identity, new Vector3(hullWidth * 0.45f, 0.18f, 0.14f), new Color(0.31f, 0.21f, 0.12f));
