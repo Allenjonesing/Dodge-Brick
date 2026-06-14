@@ -41,7 +41,7 @@ namespace LivingRoomPirates.Demo
 
         [Header("Debris")]
         public float debrisRecyclerHalfRange = 120f;
-        public int extraDebrisCount = 90;
+        public int extraDebrisCount = 45;
 
         [Header("Cannons")]
         public bool autoFireCannons = false;
@@ -774,17 +774,39 @@ namespace LivingRoomPirates.Demo
         private void AddStationButton(GameObject go, LrpDebugStationButton.Action action)
         {
             if (go == null) return;
-            Collider c = go.GetComponent<Collider>(); if (c != null) c.isTrigger = true;
+
+            Collider c = go.GetComponent<Collider>();
+            if (c != null)
+            {
+                // XR rays often ignore trigger-only colliders depending on interactor settings.
+                // Keep station colliders solid and kinematic so the red laser can select them.
+                c.isTrigger = false;
+            }
+
             Rigidbody rb = go.GetComponent<Rigidbody>(); if (rb == null) rb = go.AddComponent<Rigidbody>();
             rb.isKinematic = true; rb.useGravity = false;
+
             LrpDebugStationButton b = go.GetComponent<LrpDebugStationButton>(); if (b == null) b = go.AddComponent<LrpDebugStationButton>();
             b.action = action; b.sandbox = this;
+
+            LrpXrInteractableBridge bridge = go.GetComponent<LrpXrInteractableBridge>();
+            if (bridge == null) bridge = go.AddComponent<LrpXrInteractableBridge>();
+            bridge.button = b;
+            bridge.invokeOnSelect = true;
+            bridge.invokeOnActivate = true;
+            bridge.continuousWhileSelected = action == LrpDebugStationButton.Action.SteerLeft
+                || action == LrpDebugStationButton.Action.SteerRight
+                || action == LrpDebugStationButton.Action.RaiseSail
+                || action == LrpDebugStationButton.Action.LowerSail;
+            bridge.continuousInterval = 0.06f;
+
             TryAddXrSimpleInteractable(go);
         }
 
         private static void TryAddXrSimpleInteractable(GameObject go)
         {
             if (go == null) return;
+            if (go.GetComponent<UnityEngine.XR.Interaction.Toolkit.XRBaseInteractable>() != null) return;
             string[] typeNames = { "UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable, Unity.XR.Interaction.Toolkit", "UnityEngine.XR.Interaction.Toolkit.XRSimpleInteractable, Unity.XR.Interaction.Toolkit" };
             for (int i = 0; i < typeNames.Length; i++)
             {
@@ -809,6 +831,7 @@ namespace LivingRoomPirates.Demo
 
         private void OnGUI()
         {
+            return; // Debug overlay removed; use physical ship signs only.
             if (!showOverlay) return;
             GUI.Box(new Rect(12f, 12f, 520f, 190f),
                 "LRP Manual Debug\n" +

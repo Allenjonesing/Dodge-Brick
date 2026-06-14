@@ -369,6 +369,7 @@ namespace LivingRoomPirates.Demo
 
         private void OnGUI()
         {
+            return; // Debug overlay removed; use physical ship signs only.
             if (!showOverlay) return;
             GUI.Box(new Rect(12f, 250f, 410f, 190f),
                 "LRP Primitive Debug Sandbox\n\n" +

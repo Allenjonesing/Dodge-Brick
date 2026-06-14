@@ -111,9 +111,17 @@ namespace LivingRoomPirates.Demo
             BoundaryShipGenerator generator = Ensure<BoundaryShipGenerator>(root);
             generator.shipGeneratedRoot = shipRoot;
             generator.boundaryDebugRoot = boundaryDebugRoot;
+#if UNITY_EDITOR
             generator.editorFallbackWidth = UnityEngine.Random.Range(0.5f, 10f);
             generator.editorFallbackDepth = UnityEngine.Random.Range(0.5f, 10f);
             generator.randomizeEditorFallbackBoundary = true;
+#else
+            // On Quest stationary/no-roomscale Guardian, generate the small supportable raft/dinghy
+            // instead of randomly creating an oversized ship that cannot fit.
+            generator.editorFallbackWidth = 0.8f;
+            generator.editorFallbackDepth = 0.8f;
+            generator.randomizeEditorFallbackBoundary = false;
+#endif
             generator.regenerateOnStart = false;
             generator.stationPrefabScaleMultiplier = 2.0f;
             generator.forceEnableSpawnedStations = true;
@@ -164,11 +172,16 @@ namespace LivingRoomPirates.Demo
             sandbox.waterTravelEnabled = false;
             sandbox.waterTravelSpeed = 0.8f;
             sandbox.debrisRecyclerHalfRange = 120f;
-            sandbox.extraDebrisCount = 90;
+            sandbox.extraDebrisCount = 45;
             sandbox.autoFireCannons = false;
             sandbox.enabled = true;
 
             DisablePhotonInScene();
+
+            LrpPrimitivePerformanceOptimizer optimizer = Ensure<LrpPrimitivePerformanceOptimizer>(root);
+            optimizer.optimizeOnStart = true;
+            optimizer.keepScanningBriefly = true;
+            optimizer.enabled = true;
 
             // In Play mode Start() will also regenerate. In edit-time context menu this gives instant visuals.
             if (Application.isPlaying)
@@ -263,7 +276,7 @@ namespace LivingRoomPirates.Demo
             bool needsMesh = mf.sharedMesh == null || mf.sharedMesh.vertexCount < 16;
             if (!onlyIfMissingOrTiny || needsMesh)
             {
-                Mesh mesh = BuildGridMesh(width, depth, 80, 80);
+                Mesh mesh = BuildGridMesh(width, depth, 24, 24);
                 mesh.name = $"LRP Scene Water Grid Mesh {width:F0}x{depth:F0}";
                 mf.sharedMesh = mesh;
             }
