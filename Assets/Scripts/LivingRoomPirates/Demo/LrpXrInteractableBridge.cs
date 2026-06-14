@@ -22,6 +22,7 @@ namespace LivingRoomPirates.Demo
         public bool showHoverColor = true;
 
         private XRBaseInteractable _interactable;
+        private Component _interactionManager;
         private bool _wasSelected;
         private float _nextContinuousTime;
         private PropertyInfo _isSelectedProperty;
@@ -70,32 +71,67 @@ namespace LivingRoomPirates.Demo
             _wasSelected = selected;
         }
 
+
+        public void RepairForXr(Component interactionManager)
+        {
+            _interactionManager = interactionManager;
+            EnsureInteractable();
+            if (_interactable != null)
+                LrpXrRigAutoConfigurator.AssignInteractionManager(_interactable, _interactionManager);
+            CacheReflection();
+        }
+
+
+        public void InvokeFromFallback()
+        {
+            if (button != null)
+                button.InvokeAction();
+        }
+
+        public bool CanFallbackContinuously()
+        {
+            return continuousWhileSelected;
+        }
+
+        public float FallbackContinuousInterval()
+        {
+            return Mathf.Max(0.01f, continuousInterval);
+        }
+
         private void EnsureInteractable()
         {
             Collider col = GetComponent<Collider>();
             if (col == null) col = gameObject.AddComponent<BoxCollider>();
-            col.isTrigger = false;
+            col.isTrigger = true;
 
             Rigidbody rb = GetComponent<Rigidbody>();
             if (rb == null) rb = gameObject.AddComponent<Rigidbody>();
             rb.isKinematic = true;
             rb.useGravity = false;
             rb.constraints = RigidbodyConstraints.FreezeAll;
+            rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
 
             _interactable = GetComponent<XRBaseInteractable>();
             if (_interactable == null)
             {
-                // Prefer XRGrabInteractable so default XR rigs treat handles as actually grabbable.
-                // Fall back to XRSimpleInteractable for older/minimal setups.
-                System.Type grabType = System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.XRGrabInteractable, Unity.XR.Interaction.Toolkit");
-                if (grabType == null)
-                    grabType = System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable, Unity.XR.Interaction.Toolkit");
-
-                if (grabType != null && typeof(XRBaseInteractable).IsAssignableFrom(grabType))
-                    _interactable = (XRBaseInteractable)gameObject.AddComponent(grabType);
-                else
-                    _interactable = gameObject.AddComponent<XRSimpleInteractable>();
+                // Safe default: use SimpleInteractable for ray/direct select events.
+                // XRGrabInteractable can fight generated kinematic station props and was
+                // part of the v32 crash/rig-instability path. Cannonballs/hammer can
+                // later use real XRGrabInteractable prefabs once the rig is stable.
+                _interactable = gameObject.AddComponent<XRSimpleInteractable>();
             }
+
+            if (_interactable != null && _interactionManager == null)
+            {
+                System.Type managerType = LrpXrRigAutoConfigurator.FindType(
+                    "UnityEngine.XR.Interaction.Toolkit.XRInteractionManager, Unity.XR.Interaction.Toolkit",
+                    "UnityEngine.XR.Interaction.Toolkit.Interaction.XRInteractionManager, Unity.XR.Interaction.Toolkit");
+                if (managerType != null)
+                    _interactionManager = FindObjectOfType(managerType) as Component;
+            }
+
+            if (_interactable != null && _interactionManager != null)
+                LrpXrRigAutoConfigurator.AssignInteractionManager(_interactable, _interactionManager);
         }
 
         private void CacheReflection()

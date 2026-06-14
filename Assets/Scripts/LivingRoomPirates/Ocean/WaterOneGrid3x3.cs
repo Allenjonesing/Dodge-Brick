@@ -1,19 +1,24 @@
 using UnityEngine;
 
 /// <summary>
-/// Turns a single Water1 mesh into a 3x3 seamless visual grid.
-/// Attach this to Water1. Water1 remains the root that OceanWorldController moves vertically.
-/// The original Water1 renderer is kept as the center tile; the eight clones are visual children.
+/// Turns the scene Water1 object into a reusable, low-overhead visual ocean grid.
+/// Water1 itself remains the authoritative vertical snap root. The generated
+/// Water1_Tile_* children are placed under one shared TileGridRoot so yaw/heading,
+/// wave coordinates, movement, and recycling all share one transform space.
 /// </summary>
 [DisallowMultipleComponent]
 public class WaterOneGrid3x3 : MonoBehaviour
 {
     [Header("Grid")]
-    public int gridRadius = 1;
-    [Tooltip("World-space width/depth of one Water1 tile. If <= 0, this is estimated from the renderer bounds.")]
-    public float tileSize = 40f;
-    [Tooltip("When true, generated visual tiles are scaled to tileSize even if the scene Water1 plane was left at Scale 1 with a 10m Unity plane mesh.")]
+    [Tooltip("2 = 5x5 grid.")]
+    public int gridRadius = 2;
+
+    [Tooltip("World-space width/depth of one visible Water1 tile. Leave scene Water1 scale at 1,1,1; code scales the visible tiles.")]
+    public float tileSize = 70f;
+
+    [Tooltip("When true, generated visual tiles are scaled to tileSize even if the scene Water1 plane is Scale 1 with Unity's default 10m plane mesh.")]
     public bool codeOwnsTileScale = true;
+
     public bool buildOnStart = true;
     public bool rebuildIfTileSizeChanges = false;
 
@@ -21,11 +26,25 @@ public class WaterOneGrid3x3 : MonoBehaviour
     public bool waterTravelEnabled = true;
     public bool recycleTilesAroundAnchor = true;
     public Transform recycleAnchor;
-    [Tooltip("Moves the generated Water1 tiles under the locked ship. The root only moves vertically for snap.")]
+
+    [Tooltip("Moves the generated Water1 tiles under the locked ship. Water1 root only moves vertically for snap.")]
     public float waterTravelSpeed = 1.4f;
+
+    [Tooltip("Virtual ship heading. Kept for compatibility; visualYawDegrees is the authority for grid movement/recycling.")]
     public Vector2 waterTravelDirection = new Vector2(0f, 1f);
 
+    [Tooltip("Yaw used to rotate the entire tile grid parent. Individual tiles remain unrotated in local space.")]
+    public float visualYawDegrees = 0f;
+
+    [Tooltip("Optional forward placement bias in tile widths. Use 0 for a symmetric grid around the ship.")]
+    public float forwardBiasTiles = 0f;
+
+    [Tooltip("Recycle before the tile is actually at the edge. Higher values reduce visible edge exposure.")]
+    [Range(0f, 0.45f)] public float earlyRecyclePaddingTiles = 0.2f;
+
+    private const string GridRootName = "Water1_TileGridRoot_GROUP_ROTATES_AS_ONE";
     private float _lastTileSize;
+    private Transform _gridRoot;
 
     private void Start()
     {
@@ -46,6 +65,10 @@ public class WaterOneGrid3x3 : MonoBehaviour
             }
         }
 
+        EnsureGridRoot();
+        RefreshWaveCoordinateRoots();
+        UpdateGroupTransform();
+
         if (waterTravelEnabled)
         {
             MoveGeneratedTiles(Time.deltaTime);
@@ -57,25 +80,61 @@ public class WaterOneGrid3x3 : MonoBehaviour
         }
     }
 
+    private void EnsureGridRoot()
+    {
+        if (_gridRoot != null) return;
+        Transform existing = transform.Find(GridRootName);
+        if (existing != null)
+        {
+            _gridRoot = existing;
+            return;
+        }
+
+        GameObject root = new GameObject(GridRootName);
+        root.transform.SetParent(transform, false);
+        root.transform.localPosition = Vector3.zero;
+        root.transform.localRotation = Quaternion.identity;
+        root.transform.localScale = Vector3.one;
+        _gridRoot = root.transform;
+    }
+
+    private void RefreshWaveCoordinateRoots()
+    {
+        EnsureGridRoot();
+        OceanWaveMeshDeformer rootDeformer = GetComponent<OceanWaveMeshDeformer>();
+        if (rootDeformer != null)
+        {
+            rootDeformer.waveCoordinateRoot = _gridRoot;
+            rootDeformer.useWaveCoordinateRoot = true;
+            rootDeformer.useWorldSpaceWaveCoordinates = true;
+        }
+
+        if (_gridRoot == null) return;
+        OceanWaveMeshDeformer[] deformers = _gridRoot.GetComponentsInChildren<OceanWaveMeshDeformer>(true);
+        for (int i = 0; i < deformers.Length; i++)
+        {
+            if (deformers[i] == null) continue;
+            deformers[i].waveCoordinateRoot = _gridRoot;
+            deformers[i].useWaveCoordinateRoot = true;
+            deformers[i].useWorldSpaceWaveCoordinates = true;
+        }
+    }
+
+    private void UpdateGroupTransform()
+    {
+        if (_gridRoot == null) return;
+        Vector3 anchor = recycleAnchor != null ? recycleAnchor.position : Vector3.zero;
+        _gridRoot.position = new Vector3(anchor.x, transform.position.y, anchor.z);
+        _gridRoot.rotation = Quaternion.Euler(0f, visualYawDegrees, 0f);
+        _gridRoot.localScale = Vector3.one;
+    }
 
     private void MoveGeneratedTiles(float deltaTime)
     {
-        Vector2 dir = waterTravelDirection.sqrMagnitude > 0.0001f
-            ? waterTravelDirection.normalized
-            : Vector2.up;
-
-        // Negative direction makes the water move underneath the stationary ship,
-        // like the ship is travelling forward even though the player never moves.
-        Vector3 localStep = new Vector3(-dir.x, 0f, -dir.y) * waterTravelSpeed * deltaTime;
-
-        for (int i = 0; i < transform.childCount; i++)
-        {
-            Transform child = transform.GetChild(i);
-            if (child != null && child.name.StartsWith("Water1_Tile_"))
-            {
-                child.localPosition += localStep;
-            }
-        }
+        // Movement is in the grid parent's local space. Since the parent yaw is the
+        // current heading, local -Z is always "water coming toward the ship".
+        Vector3 localStep = Vector3.back * waterTravelSpeed * deltaTime;
+        ForEachTile(tile => tile.localPosition += localStep);
     }
 
     private void RecycleTiles()
@@ -83,42 +142,52 @@ public class WaterOneGrid3x3 : MonoBehaviour
         float resolved = _lastTileSize > 0.01f ? _lastTileSize : ResolveTileSize();
         if (resolved <= 0.01f) return;
 
-        Vector3 anchor = recycleAnchor != null ? recycleAnchor.position : Vector3.zero;
-        float halfGrid = resolved * (gridRadius + 0.5f);
+        float centerZ = resolved * forwardBiasTiles; // normally zero: symmetric 5x5 grid
+        float halfGrid = resolved * (gridRadius + 0.5f - earlyRecyclePaddingTiles);
         float fullGrid = resolved * (gridRadius * 2 + 1);
 
-        for (int i = 0; i < transform.childCount; i++)
+        ForEachTile(tile => RecycleSingleTileLocal(tile, centerZ, halfGrid, fullGrid));
+    }
+
+    private void ForEachTile(System.Action<Transform> action)
+    {
+        if (action == null) return;
+        EnsureGridRoot();
+        if (_gridRoot == null) return;
+        for (int i = 0; i < _gridRoot.childCount; i++)
         {
-            Transform child = transform.GetChild(i);
-            if (child != null && child.name.StartsWith("Water1_Tile_"))
-            {
-                RecycleSingleTile(child, anchor, halfGrid, fullGrid);
-            }
+            Transform child = _gridRoot.GetChild(i);
+            if (child != null && child.name.StartsWith("Water1_Tile_")) action(child);
         }
     }
 
-    private static void RecycleSingleTile(Transform tile, Vector3 anchor, float halfGrid, float fullGrid)
+    private static void RecycleSingleTileLocal(Transform tile, float centerZ, float halfGrid, float fullGrid)
     {
-        if (tile == null || tile.parent == null) return;
+        if (tile == null) return;
 
-        Vector3 world = tile.position;
+        Vector3 p = tile.localPosition;
+        float x = p.x;
+        float z = p.z - centerZ;
         bool changed = false;
 
-        while (world.x - anchor.x > halfGrid) { world.x -= fullGrid; changed = true; }
-        while (world.x - anchor.x < -halfGrid) { world.x += fullGrid; changed = true; }
-        while (world.z - anchor.z > halfGrid) { world.z -= fullGrid; changed = true; }
-        while (world.z - anchor.z < -halfGrid) { world.z += fullGrid; changed = true; }
+        while (x > halfGrid) { x -= fullGrid; changed = true; }
+        while (x < -halfGrid) { x += fullGrid; changed = true; }
+        while (z > halfGrid) { z -= fullGrid; changed = true; }
+        while (z < -halfGrid) { z += fullGrid; changed = true; }
 
         if (changed)
         {
-            tile.position = new Vector3(world.x, tile.position.y, world.z);
+            p.x = x;
+            p.z = z + centerZ;
+            tile.localPosition = p;
         }
     }
 
-    [ContextMenu("Build 3x3 Water1 Grid")]
+    [ContextMenu("Build Water1 Visual Grid")]
     public void BuildGrid()
     {
         ClearGeneratedTiles();
+        EnsureGridRoot();
 
         OceanWaveMeshDeformer sourceDeformer = GetComponent<OceanWaveMeshDeformer>();
         MeshFilter sourceMesh = GetComponent<MeshFilter>();
@@ -137,55 +206,51 @@ public class WaterOneGrid3x3 : MonoBehaviour
             return;
         }
 
+        UpdateGroupTransform();
+        RefreshWaveCoordinateRoots();
+
+        Vector3 biasedCenter = Vector3.forward * (_lastTileSize * forwardBiasTiles);
+
         for (int x = -gridRadius; x <= gridRadius; x++)
         {
             for (int z = -gridRadius; z <= gridRadius; z++)
             {
-                CreateTile(x, z, sourceMesh, sourceRenderer, sourceDeformer, _lastTileSize);
+                CreateTile(x, z, biasedCenter + Vector3.right * (x * _lastTileSize) + Vector3.forward * (z * _lastTileSize), sourceMesh, sourceRenderer, sourceDeformer, _lastTileSize);
             }
         }
 
         sourceRenderer.enabled = false;
-        Debug.Log($"[WaterOneGrid3x3] Built {(gridRadius * 2 + 1)}x{(gridRadius * 2 + 1)} Water1 visual grid. Root renderer hidden; generated tiles recycle. Tile size: {_lastTileSize:F2} world units.", this);
+        Debug.Log($"[WaterOneGrid3x3] Built {(gridRadius * 2 + 1)}x{(gridRadius * 2 + 1)} Water1 grid under one rotating parent. Tile size: {_lastTileSize:F1}m, forward bias: {forwardBiasTiles:F2}.", this);
     }
 
-    private void CreateTile(int x, int z, MeshFilter sourceMesh, Renderer sourceRenderer, OceanWaveMeshDeformer sourceDeformer, float resolvedTileSize)
+    private void CreateTile(int x, int z, Vector3 localOffsetFromAnchor, MeshFilter sourceMesh, Renderer sourceRenderer, OceanWaveMeshDeformer sourceDeformer, float resolvedTileSize)
     {
+        EnsureGridRoot();
         GameObject tile = new GameObject($"Water1_Tile_{x}_{z}");
-        tile.transform.SetParent(transform, false);
-
-        // The placed scene Water1 is allowed to stay at Scale 1,1,1, but if the
-        // user or old scene accidentally scaled it, child local offsets must be
-        // divided by the parent scale. Otherwise a 40m tile on a parent scaled 4
-        // gets spaced 160m apart and creates huge gaps.
-        float sx = Mathf.Abs(transform.lossyScale.x) > 0.0001f ? Mathf.Abs(transform.lossyScale.x) : 1f;
-        float sz = Mathf.Abs(transform.lossyScale.z) > 0.0001f ? Mathf.Abs(transform.lossyScale.z) : 1f;
-        tile.transform.localPosition = new Vector3((x * resolvedTileSize) / sx, 0f, (z * resolvedTileSize) / sz);
+        tile.transform.SetParent(_gridRoot, false);
+        tile.transform.localPosition = localOffsetFromAnchor;
         tile.transform.localRotation = Quaternion.identity;
         tile.transform.localScale = ResolveTileLocalScale(sourceMesh, resolvedTileSize);
 
         MeshFilter meshFilter = tile.AddComponent<MeshFilter>();
         meshFilter.sharedMesh = sourceMesh.sharedMesh;
 
-        Renderer renderer;
-        if (sourceRenderer is MeshRenderer)
-        {
-            renderer = tile.AddComponent<MeshRenderer>();
-        }
-        else
-        {
-            renderer = tile.AddComponent<MeshRenderer>();
-        }
-
+        Renderer renderer = tile.AddComponent<MeshRenderer>();
         renderer.sharedMaterials = sourceRenderer.sharedMaterials;
         renderer.enabled = true;
-        renderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
-        renderer.receiveShadows = sourceRenderer.receiveShadows;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+        renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
 
         OceanWaveMeshDeformer deformer = tile.AddComponent<OceanWaveMeshDeformer>();
         deformer.CopyWaveSettingsFrom(sourceDeformer);
+        deformer.waveCoordinateRoot = _gridRoot;
+        deformer.useWaveCoordinateRoot = true;
+        deformer.useWorldSpaceWaveCoordinates = true;
+        deformer.tileVariationSeed = (x + 31) * 73856093 ^ (z + 37) * 19349663;
+        deformer.useTileInteriorVariation = true;
     }
-
 
     private Vector3 ResolveTileLocalScale(MeshFilter sourceMesh, float resolvedTileSize)
     {
@@ -201,8 +266,6 @@ public class WaterOneGrid3x3 : MonoBehaviour
             return Vector3.one;
         }
 
-        // Parent Water1 stays at scale 1. A stock Unity Plane is 10m wide at scale 1,
-        // so a 40m tile becomes local scale 4. A generated 40m mesh becomes scale 1.
         float scale = resolvedTileSize / localSize;
         return new Vector3(scale, 1f, scale);
     }
@@ -225,22 +288,20 @@ public class WaterOneGrid3x3 : MonoBehaviour
 
     private void ClearGeneratedTiles()
     {
+        Transform oldRoot = transform.Find(GridRootName);
+        if (oldRoot != null)
+        {
+            if (Application.isPlaying) Destroy(oldRoot.gameObject);
+            else DestroyImmediate(oldRoot.gameObject);
+            if (_gridRoot == oldRoot) _gridRoot = null;
+        }
+
         for (int i = transform.childCount - 1; i >= 0; i--)
         {
             Transform child = transform.GetChild(i);
-            if (!child.name.StartsWith("Water1_Tile_"))
-            {
-                continue;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(child.gameObject);
-            }
-            else
-            {
-                DestroyImmediate(child.gameObject);
-            }
+            if (child == null || !child.name.StartsWith("Water1_Tile_")) continue;
+            if (Application.isPlaying) Destroy(child.gameObject);
+            else DestroyImmediate(child.gameObject);
         }
     }
 }

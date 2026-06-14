@@ -35,6 +35,14 @@ namespace LivingRoomPirates.Demo
 
         public void RefreshTarget()
         {
+            // The newer LockedShipOceanSnapper owns Water1 Y and size-based offset.
+            // Do not let this legacy maintainer fight it.
+            LockedShipOceanSnapper modernSnapper = FindObjectOfType<LockedShipOceanSnapper>();
+            if (modernSnapper != null && modernSnapper.enabled)
+            {
+                return;
+            }
+
             if (shipRoot == null || ocean == null)
             {
                 return;

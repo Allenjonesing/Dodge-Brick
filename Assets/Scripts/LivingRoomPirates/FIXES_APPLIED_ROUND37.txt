@@ -1,0 +1,5 @@
+Round 37
+- Fixed ocean-heading rotation so the actual wave equation rotates with the Water1 tile grid parent.
+- OceanWaveMeshDeformer now supports waveCoordinateRoot; world samples are converted into the shared grid root local space before calculating wave height.
+- WaterOneGrid3x3 assigns every Water1_Tile_* deformer, plus the scene Water1 deformer used by snapping, to the same coordinate root.
+- Result: rotating the ocean grid for heading rotates meshes, material, and wave crests/troughs together. Ship/debris snapping still samples the same authoritative surface.

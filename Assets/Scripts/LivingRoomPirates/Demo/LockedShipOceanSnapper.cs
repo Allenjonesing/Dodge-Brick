@@ -23,6 +23,14 @@ namespace LivingRoomPirates.Demo
         [Tooltip("Negative lowers the ocean relative to the ship contact, making the ship appear slightly raised.")]
         public float shipToOceanSnapHeightOffset = -0.05f;
 
+        [Header("Automatic Size Offset")]
+        [Tooltip("When enabled, computes the ocean contact offset from ship footprint size: tiny raft/dinghy ~ -0.5, galleon ~ -3.0.")]
+        public bool autoOffsetFromShipSize = true;
+        public float tinyShipSize = 0.5f;
+        public float galleonShipSize = 10f;
+        public float tinyShipOffset = -0.5f;
+        public float galleonShipOffset = -3.0f;
+
         [Header("Hull Samples")]
         [Tooltip("Use 8 hull footprint samples: four corners plus front/back/left/right centers.")]
         public bool useEightPointHullAverage = true;
@@ -58,6 +66,8 @@ namespace LivingRoomPirates.Demo
                 return;
             }
 
+            float effectiveOffset = ResolveEffectiveOffset(contacts);
+
             float targetSum = 0f;
             float gapSum = 0f;
             int count = 0;
@@ -67,9 +77,9 @@ namespace LivingRoomPirates.Demo
             {
                 Vector3 contact = contacts[i];
                 float waveOffset = deformer != null ? deformer.SampleWaveOffsetWorld(contact) : 0f;
-                float targetYForThisPoint = contact.y + shipToOceanSnapHeightOffset - waveOffset;
+                float targetYForThisPoint = contact.y + effectiveOffset - waveOffset;
                 float currentSurfaceY = currentWaterY + waveOffset;
-                float desiredSurfaceY = contact.y + shipToOceanSnapHeightOffset;
+                float desiredSurfaceY = contact.y + effectiveOffset;
 
                 targetSum += targetYForThisPoint;
                 gapSum += desiredSurfaceY - currentSurfaceY;
@@ -101,14 +111,37 @@ namespace LivingRoomPirates.Demo
                 ocean.visualShipRoot = shipRoot;
                 ocean.closeWaterOneGapToShip = false;
                 ocean.waterOneHeightOffset = 0f;
-                ocean.shipToOceanSnapHeightOffset = shipToOceanSnapHeightOffset;
+                ocean.shipToOceanSnapHeightOffset = effectiveOffset;
             }
 
             if (logDebug && Time.time >= _nextLog)
             {
                 _nextLog = Time.time + Mathf.Max(0.1f, logInterval);
-                Debug.Log($"[LockedShipOceanSnapper] samples={count} avgGapBefore={_lastAverageGap:F3} Water1Y={waterOne.position.y:F3} targetY={targetY:F3} offset={shipToOceanSnapHeightOffset:F3}", this);
+                Debug.Log($"[LockedShipOceanSnapper] samples={count} avgGapBefore={_lastAverageGap:F3} Water1Y={waterOne.position.y:F3} targetY={targetY:F3} offset={effectiveOffset:F3}", this);
             }
+        }
+
+        private float ResolveEffectiveOffset(Vector3[] contacts)
+        {
+            if (!autoOffsetFromShipSize || contacts == null || contacts.Length == 0)
+            {
+                return shipToOceanSnapHeightOffset;
+            }
+
+            float minX = contacts[0].x, maxX = contacts[0].x;
+            float minZ = contacts[0].z, maxZ = contacts[0].z;
+            for (int i = 1; i < contacts.Length; i++)
+            {
+                Vector3 p = contacts[i];
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.z < minZ) minZ = p.z;
+                if (p.z > maxZ) maxZ = p.z;
+            }
+
+            float size = Mathf.Max(maxX - minX, maxZ - minZ);
+            float t = Mathf.InverseLerp(Mathf.Max(0.01f, tinyShipSize), Mathf.Max(tinyShipSize + 0.01f, galleonShipSize), size);
+            return Mathf.Lerp(tinyShipOffset, galleonShipOffset, Mathf.Clamp01(t));
         }
 
         private void Resolve()

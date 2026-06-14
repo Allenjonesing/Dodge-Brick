@@ -1,0 +1,7 @@
+Round 33 changes:
+- Water1 tile yaw now rotates one shared Water1_TileGridRoot parent instead of rotating each tile independently.
+- Water1 visual tiles still recycle/move individually, but the group rotation preserves the ocean illusion.
+- Removed the distracting blue cannon muzzle/load-zone ball; load zone is invisible with small gold guide markers.
+- Ship-to-ocean snap offset now auto-scales by ship footprint: tiny raft/dinghy ~ -0.5m through galleon ~ -3.0m.
+- Sail control ropes now visually attach to the mast via top rope, pulley block, tail rope, and cleat rope.
+- Disabled legacy ShipOceanSnapTargetMaintainer when LockedShipOceanSnapper is present so the two snap systems do not fight.

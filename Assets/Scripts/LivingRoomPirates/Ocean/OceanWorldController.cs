@@ -778,7 +778,10 @@ public class ShipStormMotionController : MonoBehaviour
             grid = waterTransform.gameObject.AddComponent<WaterOneGrid3x3>();
         }
 
-        grid.gridRadius = 1;
+        grid.gridRadius = 2;
+        grid.tileSize = Mathf.Max(grid.tileSize, 70f);
+        grid.forwardBiasTiles = 0f;
+        grid.earlyRecyclePaddingTiles = Mathf.Max(grid.earlyRecyclePaddingTiles, 0.2f);
         grid.buildOnStart = true;
         if (Application.isPlaying)
         {

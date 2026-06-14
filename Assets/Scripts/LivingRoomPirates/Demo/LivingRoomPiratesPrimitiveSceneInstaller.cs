@@ -180,8 +180,34 @@ namespace LivingRoomPirates.Demo
 
             LrpPrimitivePerformanceOptimizer optimizer = Ensure<LrpPrimitivePerformanceOptimizer>(root);
             optimizer.optimizeOnStart = true;
-            optimizer.keepScanningBriefly = true;
+            optimizer.keepScanningBriefly = false;
             optimizer.enabled = true;
+
+            LrpVrPhysicsSanitizer physicsSanitizer = Ensure<LrpVrPhysicsSanitizer>(root);
+            physicsSanitizer.runOnStart = true;
+            physicsSanitizer.keepScanningBriefly = true;
+            physicsSanitizer.enabled = true;
+
+            LrpXrRigAutoConfigurator xrRig = Ensure<LrpXrRigAutoConfigurator>(root);
+            xrRig.configureOnStart = true;
+            xrRig.keepScanningBriefly = true;
+            xrRig.directGrabRadius = 0.18f;
+            // Keep the old XRI repair conservative, then use LrpVrHandInteractionFallback
+            // for actual grip/trigger station use. This matches the working XR starter
+            // rig pattern without mutating controller input-action assets.
+            xrRig.addDirectInteractorToHands = false;
+            xrRig.addRayInteractorIfMissing = false;
+            xrRig.addHandTriggerCollider = false;
+            xrRig.addHandRigidbody = false;
+            xrRig.keepScanningBriefly = false;
+            xrRig.enabled = true;
+
+            LrpVrHandInteractionFallback handFallback = Ensure<LrpVrHandInteractionFallback>(root);
+            handFallback.enableVrHands = true;
+            handFallback.directGrabRadius = 0.32f;
+            handFallback.rayDistance = 15f;
+            handFallback.rescanInterval = 0.75f;
+            handFallback.enabled = true;
 
             // In Play mode Start() will also regenerate. In edit-time context menu this gives instant visuals.
             if (Application.isPlaying)
@@ -199,6 +225,11 @@ namespace LivingRoomPirates.Demo
             snapper.waterOne = waterOne.transform;
             snapper.ocean = ocean;
             snapper.shipToOceanSnapHeightOffset = -0.05f;
+            snapper.autoOffsetFromShipSize = true;
+            snapper.tinyShipSize = 0.5f;
+            snapper.galleonShipSize = 10f;
+            snapper.tinyShipOffset = -0.5f;
+            snapper.galleonShipOffset = -3.0f;
             snapper.useEightPointHullAverage = true;
             snapper.hullSampleInsetPercent = 0.12f;
             snapper.enabled = true;
@@ -215,7 +246,7 @@ namespace LivingRoomPirates.Demo
             // Leave the scene object at scale 1 and replace/repair its mesh to a
             // 40m x 40m subdivided plane so generated tiles have no gaps.
             waterOne.transform.localScale = Vector3.one;
-            EnsureMeshPlane(waterOne, 40f, 40f, GetRendererColor(waterOne, new Color(0.05f, 0.38f, 0.58f, 0.82f)), onlyIfMissingOrTiny: false);
+            EnsureMeshPlane(waterOne, 70f, 70f, GetRendererColor(waterOne, new Color(0.05f, 0.38f, 0.58f, 0.82f)), onlyIfMissingOrTiny: false);
             waterOne.transform.localRotation = Quaternion.identity;
 
             OceanWaveMeshDeformer deformer = Ensure<OceanWaveMeshDeformer>(waterOne);
@@ -229,13 +260,16 @@ namespace LivingRoomPirates.Demo
             deformer.useWorldSpaceWaveCoordinates = true;
 
             WaterOneGrid3x3 grid = Ensure<WaterOneGrid3x3>(waterOne);
-            grid.gridRadius = 1;
-            grid.tileSize = 40f;
+            grid.gridRadius = 2;
+            grid.tileSize = 70f;
+            grid.forwardBiasTiles = 0f;
+            grid.earlyRecyclePaddingTiles = 0.2f;
             grid.codeOwnsTileScale = true;
             grid.buildOnStart = true;
             grid.waterTravelEnabled = false;
-            grid.waterTravelSpeed = 0.8f;
+            grid.waterTravelSpeed = 0.45f;
             grid.waterTravelDirection = new Vector2(0f, 1f);
+            grid.visualYawDegrees = 0f;
             grid.enabled = true;
 
             AuthoritativeOceanSurface surface = Ensure<AuthoritativeOceanSurface>(waterOne);
@@ -276,7 +310,7 @@ namespace LivingRoomPirates.Demo
             bool needsMesh = mf.sharedMesh == null || mf.sharedMesh.vertexCount < 16;
             if (!onlyIfMissingOrTiny || needsMesh)
             {
-                Mesh mesh = BuildGridMesh(width, depth, 24, 24);
+                Mesh mesh = BuildGridMesh(width, depth, width > 1000f || depth > 1000f ? 4 : 16, width > 1000f || depth > 1000f ? 4 : 16);
                 mesh.name = $"LRP Scene Water Grid Mesh {width:F0}x{depth:F0}";
                 mf.sharedMesh = mesh;
             }

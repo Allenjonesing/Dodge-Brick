@@ -30,7 +30,7 @@ namespace LivingRoomPirates.Demo
 
         [Header("Sailing / Steering")]
         public bool waterTravelEnabled = false;
-        public float waterTravelSpeed = 0.65f;
+        public float waterTravelSpeed = 0.45f;
         public Vector2 waterTravelDirection = new Vector2(0f, 1f);
         [Range(0f, 1f)] public float sailPercent = 0.35f;
         public float sailFullSpeedMultiplier = 3f;
@@ -40,8 +40,8 @@ namespace LivingRoomPirates.Demo
         public bool useKeyboardForWaterTravel = true;
 
         [Header("Debris")]
-        public float debrisRecyclerHalfRange = 120f;
-        public int extraDebrisCount = 45;
+        public float debrisRecyclerHalfRange = 180f;
+        public int extraDebrisCount = 32;
 
         [Header("Cannons")]
         public bool autoFireCannons = false;
@@ -319,11 +319,16 @@ namespace LivingRoomPirates.Demo
                 WaterOneGrid3x3 grid = waterOne.GetComponent<WaterOneGrid3x3>();
                 if (grid != null)
                 {
+                    grid.gridRadius = Mathf.Max(grid.gridRadius, 2);
+                    grid.tileSize = Mathf.Max(grid.tileSize, 70f);
+                    grid.forwardBiasTiles = 0f;
+                    grid.earlyRecyclePaddingTiles = Mathf.Max(grid.earlyRecyclePaddingTiles, 0.2f);
                     grid.recycleTilesAroundAnchor = true;
                     grid.recycleAnchor = shipRoot;
                     grid.waterTravelEnabled = enabledTravel;
                     grid.waterTravelSpeed = speed;
                     grid.waterTravelDirection = waterTravelDirection;
+                    grid.visualYawDegrees = _headingDegrees;
                 }
             }
         }
@@ -392,11 +397,16 @@ namespace LivingRoomPirates.Demo
             Cube("MastBehindSteering", new Vector3(0f, 1.15f, z), new Vector3(0.12f, 2.1f, 0.12f), new Color(0.36f, 0.18f, 0.07f));
             Cube("YardArm", new Vector3(0f, 1.82f, z), new Vector3(1.55f, 0.08f, 0.08f), new Color(0.36f, 0.18f, 0.07f));
             _sail = Cube("VariableSail_SAIL_PERCENT_CONTROLS_SPEED", new Vector3(0f, 1.33f, z + 0.03f), new Vector3(1.20f, 1.05f, 0.035f), new Color(0.92f, 0.86f, 0.64f)).transform;
-            _sailRope = Cylinder("SailMainRope_PULL_DOWN_TO_RAISE", new Vector3(-0.86f, 0.92f, z + 0.10f), new Vector3(0.035f, 0.62f, 0.035f), new Color(0.80f, 0.68f, 0.42f)).transform;
+            // Main control rope is a visible loop: mast top -> pulley -> grabbable tail -> cleat.
+            RopeBetween("SailRopeAttachedToMast_top_to_pulley", new Vector3(0f, 1.82f, z + 0.02f), new Vector3(-0.86f, 1.42f, z + 0.10f), 0.022f);
+            RopeBetween("SailRopeAttachedToMast_pulley_to_tail", new Vector3(-0.86f, 1.42f, z + 0.10f), new Vector3(-0.86f, 0.60f, z + 0.10f), 0.022f);
+            Cube("SailPulleyBlock_touching_rope", new Vector3(-0.86f, 1.42f, z + 0.10f), new Vector3(0.13f, 0.10f, 0.08f), new Color(0.36f, 0.18f, 0.07f));
+            _sailRope = Cylinder("SailMainRope_HANDLE_PULL_DOWN_TO_RAISE", new Vector3(-0.86f, 0.82f, z + 0.10f), new Vector3(0.045f, 0.26f, 0.045f), new Color(0.80f, 0.68f, 0.42f)).transform;
             AddStationButton(_sailRope.gameObject, LrpDebugStationButton.Action.ToggleSail);
-            AddStationButton(Cylinder("SailRaiseRope_GRAB_OR_E", new Vector3(-1.08f, 0.86f, z + 0.10f), new Vector3(0.03f, 0.48f, 0.03f), new Color(0.86f, 0.75f, 0.50f)), LrpDebugStationButton.Action.RaiseSail);
-            AddStationButton(Cylinder("SailLowerRope_GRAB_OR_Q", new Vector3(-0.64f, 0.86f, z + 0.10f), new Vector3(0.03f, 0.48f, 0.03f), new Color(0.86f, 0.75f, 0.50f)), LrpDebugStationButton.Action.LowerSail);
+            AddStationButton(Cylinder("SailRaiseRope_HANDLE_GRAB_OR_E", new Vector3(-1.08f, 0.80f, z + 0.10f), new Vector3(0.04f, 0.24f, 0.04f), new Color(0.86f, 0.75f, 0.50f)), LrpDebugStationButton.Action.RaiseSail);
+            AddStationButton(Cylinder("SailLowerRope_HANDLE_GRAB_OR_Q", new Vector3(-0.64f, 0.80f, z + 0.10f), new Vector3(0.04f, 0.24f, 0.04f), new Color(0.86f, 0.75f, 0.50f)), LrpDebugStationButton.Action.LowerSail);
             _cleat = Cube("SailCleat_TIE_ROPE_HERE_TO_HOLD_PERCENT", new Vector3(-0.86f, 0.48f, z + 0.14f), new Vector3(0.32f, 0.08f, 0.10f), new Color(0.45f, 0.23f, 0.08f)).transform;
+            RopeBetween("SailRopeTail_to_cleat", new Vector3(-0.86f, 0.60f, z + 0.10f), new Vector3(-0.86f, 0.48f, z + 0.14f), 0.02f);
             for (int i = 0; i < 5; i++) RopeBetween("SailRiggingRope_" + i, new Vector3(-0.7f + i * 0.35f, 1.80f, z + 0.05f), new Vector3(-1.0f + i * 0.5f, 0.62f, z + 0.45f), 0.018f);
             GameObject lantern = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             lantern.name = "SailPercentLantern_round_indicator";
@@ -467,8 +477,15 @@ namespace LivingRoomPirates.Demo
             loadZone.SetParent(pivot.transform, false);
             loadZone.localPosition = new Vector3(0f, 0.09f, 0.58f);
             loadZone.localScale = Vector3.one * 0.20f;
-            SetColor(loadZone.gameObject, new Color(0.10f, 0.55f, 0.95f, 0.35f));
+            // Invisible load zone: keep the collider/interactable, remove the distracting blue ball visual.
+            SetColor(loadZone.gameObject, new Color(1f, 0.76f, 0.18f, 0.10f));
+            Renderer loadZoneRenderer = loadZone.GetComponent<Renderer>();
+            if (loadZoneRenderer != null) loadZoneRenderer.enabled = false;
             AddStationButton(loadZone.gameObject, LrpDebugStationButton.Action.LoadCannons);
+            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_TOP", new Vector3(0f, 0.22f, 0.58f), new Vector3(0.24f, 0.025f, 0.025f), new Color(1f, 0.72f, 0.16f));
+            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_BOTTOM", new Vector3(0f, -0.04f, 0.58f), new Vector3(0.24f, 0.025f, 0.025f), new Color(1f, 0.72f, 0.16f));
+            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_LEFT", new Vector3(-0.13f, 0.09f, 0.58f), new Vector3(0.025f, 0.24f, 0.025f), new Color(1f, 0.72f, 0.16f));
+            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_RIGHT", new Vector3(0.13f, 0.09f, 0.58f), new Vector3(0.025f, 0.24f, 0.025f), new Color(1f, 0.72f, 0.16f));
             GameObject fuse = CylinderUnder(pivot.transform, name + "_FusePullRope_FIRE_LOADED_ONLY", new Vector3(0.25f, 0.13f, 0.05f), new Vector3(0.035f, 0.24f, 0.035f), new Color(0.76f, 0.58f, 0.25f));
             AddStationButton(fuse, LrpDebugStationButton.Action.FireCannons);
             GameObject light = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -780,11 +797,11 @@ namespace LivingRoomPirates.Demo
             {
                 // XR rays often ignore trigger-only colliders depending on interactor settings.
                 // Keep station colliders solid and kinematic so the red laser can select them.
-                c.isTrigger = false;
+                c.isTrigger = true;
             }
 
             Rigidbody rb = go.GetComponent<Rigidbody>(); if (rb == null) rb = go.AddComponent<Rigidbody>();
-            rb.isKinematic = true; rb.useGravity = false;
+            rb.isKinematic = true; rb.useGravity = false; rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
 
             LrpDebugStationButton b = go.GetComponent<LrpDebugStationButton>(); if (b == null) b = go.AddComponent<LrpDebugStationButton>();
             b.action = action; b.sandbox = this;

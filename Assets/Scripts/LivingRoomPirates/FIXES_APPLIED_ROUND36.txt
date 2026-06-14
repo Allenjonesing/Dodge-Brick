@@ -1,0 +1,5 @@
+Round 36
+- XR rig auto-config now supports both Editor-without-headset and headset modes.
+- In Editor/no headset: only safe station interactable repair runs; hands are not modified.
+- On headset: adds/repairs XR Direct Interactors, trigger hand volumes, and kinematic rigidbodies on strict left/right controller objects.
+- This should avoid the editor crash path while still providing hand interaction objects when running on Quest/headset.
