@@ -110,7 +110,6 @@ public class OceanWorldController : MonoBehaviour
         // or rotated by the ocean system. Instead, the ocean offset moves the
         // Water1 grid under the stationary ship like an escalator/conveyor.
         simulatedVelocity = Vector2.zero;
-        shipHeadingDegrees = 0f;
 
         if (!enableWaterEscalatorTravel)
         {

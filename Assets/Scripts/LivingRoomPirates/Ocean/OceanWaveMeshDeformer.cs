@@ -35,6 +35,13 @@ public class OceanWaveMeshDeformer : MonoBehaviour
     [Tooltip("Optional shared ocean-space transform. When set, the wave equation samples coordinates in this transform's local X/Z space, so rotating the Water1 grid root rotates the actual wave pattern too, not just the material/meshes.")]
     public Transform waveCoordinateRoot;
 
+    [Header("Wave Treadmill Offset")]
+    [Tooltip("When true, wave sampling coordinates are shifted so the actual crest/trough map scrolls like a treadmill under the locked ship.")]
+    public bool useWaveCoordinateOffset = false;
+
+    [Tooltip("Ocean-space X/Z offset applied to the wave equation. WaterOneGrid3x3 updates this while the ship sails.")]
+    public Vector2 waveCoordinateOffset = Vector2.zero;
+
     [Tooltip("When true and waveCoordinateRoot is set, world positions are converted through that root before sampling waves.")]
     public bool useWaveCoordinateRoot = true;
 
@@ -102,7 +109,17 @@ public class OceanWaveMeshDeformer : MonoBehaviour
         if (useWaveCoordinateRoot && waveCoordinateRoot != null)
         {
             Vector3 oceanSpace = waveCoordinateRoot.InverseTransformPoint(worldPosition);
+            if (useWaveCoordinateOffset)
+            {
+                oceanSpace.x += waveCoordinateOffset.x;
+                oceanSpace.z += waveCoordinateOffset.y;
+            }
             return SampleWave(oceanSpace.x, oceanSpace.z);
+        }
+
+        if (useWaveCoordinateOffset)
+        {
+            return SampleWave(worldPosition.x + waveCoordinateOffset.x, worldPosition.z + waveCoordinateOffset.y);
         }
 
         return SampleWave(worldPosition.x, worldPosition.z);
@@ -180,6 +197,8 @@ public class OceanWaveMeshDeformer : MonoBehaviour
         seed = source.seed;
         useWorldSpaceWaveCoordinates = source.useWorldSpaceWaveCoordinates;
         useWaveCoordinateRoot = source.useWaveCoordinateRoot;
+        waveCoordinateOffset = source.waveCoordinateOffset;
+        useWaveCoordinateOffset = source.useWaveCoordinateOffset;
 
         useSeamlessWorldVariation = source.useSeamlessWorldVariation;
         worldVariationStrength = source.worldVariationStrength;

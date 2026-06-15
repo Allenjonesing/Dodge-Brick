@@ -1,0 +1,5 @@
+Round 49 fixes:
+- Reworked Water1 tile treadmill movement so tile movement is computed in world travel direction, then converted into the rotated grid parent's local space.
+- Debris is no longer parented to the rotating Water1 grid. It moves in world space opposite virtual ship travel and recycles in the current heading frame.
+- Debris remains vertically snapped by SurfaceFloatFollower but horizontal movement is now controlled only by the authoritative treadmill step.
+- Wake ripples are spaced out more and remain surface-snapped/moving with the treadmill instead of acting like a fake continuous trail.

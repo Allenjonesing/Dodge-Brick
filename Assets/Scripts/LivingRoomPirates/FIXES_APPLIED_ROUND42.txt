@@ -1,0 +1,6 @@
+Round 42 fixes:
+- Added treadmill wave-coordinate offset so the Water1 crest/trough map scrolls with tile movement, not just the mesh tiles.
+- Kept Water1 grid yaw as the shared heading rotation while tile recycling remains symmetric.
+- Added ocean motion cue system: surface wind lines show wave direction and wake foam shows apparent ship trail.
+- Debris movement now reads the same OceanWorldController escalator direction used by the water grid.
+- Added sign text depth guard so small sign text hides when blocked by ship geometry instead of reading through walls.

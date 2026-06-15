@@ -5,28 +5,30 @@ using UnityEngine.XR;
 namespace LivingRoomPirates.Demo
 {
     /// <summary>
-    /// Input fallback for projects where the XR Interaction Toolkit rig is present
-    /// visually but its Direct/Ray Interactors are not wired to generated runtime objects.
-    /// It uses the actual tracked hand/controller transforms and XR grip/trigger buttons
-    /// to select LRP station handles by proximity or laser raycast.
+    /// Direct-hand interaction fallback. No ray/laser gameplay: hands must be near objects.
+    /// Grip begins a grab, hand movement drives station mechanics, release ends it.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class LrpVrHandInteractionFallback : MonoBehaviour
     {
         public bool runInEditor = true;
         public bool enableVrHands = true;
-        public float directGrabRadius = 0.28f;
-        public float rayDistance = 12f;
+        public bool disableRayInteractors = true;
+        public float directGrabRadius = 0.30f;
         public float rescanInterval = 1f;
         public LayerMask interactionMask = ~0;
-        public bool drawDebugRays = false;
 
         private readonly List<Transform> _leftHands = new List<Transform>();
         private readonly List<Transform> _rightHands = new List<Transform>();
-        private readonly Dictionary<LrpXrInteractableBridge, float> _nextContinuous = new Dictionary<LrpXrInteractableBridge, float>();
         private float _nextScan;
-        private bool _leftWasPressed;
-        private bool _rightWasPressed;
+        private HandState _left;
+        private HandState _right;
+
+        private struct HandState
+        {
+            public bool wasPressed;
+            public LrpXrInteractableBridge grabbed;
+        }
 
         private void OnEnable()
         {
@@ -42,10 +44,12 @@ namespace LivingRoomPirates.Demo
                 ScanHandsNow();
             }
 
+            ClearHoverIndicators();
+
             if (enableVrHands)
             {
-                HandleSide(XRNode.LeftHand, _leftHands, ref _leftWasPressed);
-                HandleSide(XRNode.RightHand, _rightHands, ref _rightWasPressed);
+                HandleSide(XRNode.LeftHand, _leftHands, ref _left);
+                HandleSide(XRNode.RightHand, _rightHands, ref _right);
             }
 
 #if UNITY_EDITOR
@@ -54,53 +58,53 @@ namespace LivingRoomPirates.Demo
                 Camera cam = Camera.main;
                 if (cam != null)
                 {
-                    Ray ray = cam.ScreenPointToRay(Input.mousePosition);
-                    LrpXrInteractableBridge bridge = FindBridgeByRay(ray);
-                    if (bridge != null) bridge.InvokeFromFallback();
+                    LrpXrInteractableBridge bridge = FindBridgeByProximity(cam.transform.position + cam.transform.forward * 0.6f);
+                    if (bridge != null) bridge.BeginFromFallback(bridge.transform.position);
                 }
             }
 #endif
         }
 
-        private void HandleSide(XRNode node, List<Transform> hands, ref bool wasPressed)
+        private void HandleSide(XRNode node, List<Transform> hands, ref HandState state)
         {
+            Transform hand = BestHand(hands);
+            if (hand == null) return;
+
             bool pressed = ReadPressed(node);
-            bool pressedThisFrame = pressed && !wasPressed;
-            wasPressed = pressed;
+            bool pressedThisFrame = pressed && !state.wasPressed;
+            bool releasedThisFrame = !pressed && state.wasPressed;
+            state.wasPressed = pressed;
 
-            if (!pressed) return;
-            if (hands.Count == 0) return;
-
-            LrpXrInteractableBridge best = null;
-            foreach (Transform hand in hands)
+            if (state.grabbed == null)
             {
-                if (hand == null) continue;
-
-                if (drawDebugRays)
-                    Debug.DrawRay(hand.position, hand.forward * rayDistance, Color.red, 0f, false);
-
-                LrpXrInteractableBridge rayBridge = FindBridgeByRay(new Ray(hand.position, hand.forward));
-                LrpXrInteractableBridge nearBridge = FindBridgeByProximity(hand.position);
-                best = nearBridge != null ? nearBridge : rayBridge;
-                if (best != null) break;
-            }
-
-            if (best == null) return;
-
-            if (pressedThisFrame)
-            {
-                best.InvokeFromFallback();
-                _nextContinuous[best] = Time.time + best.FallbackContinuousInterval();
-            }
-            else if (best.CanFallbackContinuously())
-            {
-                float next;
-                if (!_nextContinuous.TryGetValue(best, out next) || Time.time >= next)
+                LrpXrInteractableBridge hover = FindBridgeByProximity(hand.position);
+                if (hover != null) hover.SetHover(true, false);
+                if (pressedThisFrame && hover != null)
                 {
-                    best.InvokeFromFallback();
-                    _nextContinuous[best] = Time.time + best.FallbackContinuousInterval();
+                    state.grabbed = hover;
+                    state.grabbed.BeginFromFallback(hand.position);
                 }
             }
+            else
+            {
+                state.grabbed.SetHover(true, true);
+                if (pressed)
+                    state.grabbed.UpdateFromFallback(hand.position);
+                if (releasedThisFrame)
+                {
+                    state.grabbed.EndFromFallback(hand.position);
+                    state.grabbed = null;
+                }
+            }
+        }
+
+        private Transform BestHand(List<Transform> hands)
+        {
+            for (int i = 0; i < hands.Count; i++)
+            {
+                if (hands[i] != null && hands[i].gameObject.activeInHierarchy) return hands[i];
+            }
+            return null;
         }
 
         private bool ReadPressed(XRNode node)
@@ -109,39 +113,10 @@ namespace LivingRoomPirates.Demo
             if (!device.isValid) return false;
 
             bool gripButton;
-            if (device.TryGetFeatureValue(CommonUsages.gripButton, out gripButton) && gripButton)
-                return true;
-
-            bool triggerButton;
-            if (device.TryGetFeatureValue(CommonUsages.triggerButton, out triggerButton) && triggerButton)
-                return true;
-
+            if (device.TryGetFeatureValue(CommonUsages.gripButton, out gripButton) && gripButton) return true;
             float grip;
-            if (device.TryGetFeatureValue(CommonUsages.grip, out grip) && grip > 0.65f)
-                return true;
-
-            float trigger;
-            if (device.TryGetFeatureValue(CommonUsages.trigger, out trigger) && trigger > 0.65f)
-                return true;
-
+            if (device.TryGetFeatureValue(CommonUsages.grip, out grip) && grip > 0.55f) return true;
             return false;
-        }
-
-        private LrpXrInteractableBridge FindBridgeByRay(Ray ray)
-        {
-            RaycastHit[] hits = Physics.RaycastAll(ray, rayDistance, interactionMask, QueryTriggerInteraction.Collide);
-            if (hits == null || hits.Length == 0) return null;
-
-            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-            for (int i = 0; i < hits.Length; i++)
-            {
-                Collider c = hits[i].collider;
-                if (c == null) continue;
-                LrpXrInteractableBridge bridge = c.GetComponentInParent<LrpXrInteractableBridge>();
-                if (bridge != null && bridge.enabled && bridge.gameObject.activeInHierarchy)
-                    return bridge;
-            }
-            return null;
         }
 
         private LrpXrInteractableBridge FindBridgeByProximity(Vector3 position)
@@ -165,6 +140,16 @@ namespace LivingRoomPirates.Demo
             return best;
         }
 
+        private void ClearHoverIndicators()
+        {
+            for (int i = LrpXrInteractableBridge.All.Count - 1; i >= 0; i--)
+            {
+                LrpXrInteractableBridge b = LrpXrInteractableBridge.All[i];
+                if (b == null) { LrpXrInteractableBridge.All.RemoveAt(i); continue; }
+                b.SetHover(false, false);
+            }
+        }
+
         [ContextMenu("Scan Hands Now")]
         public void ScanHandsNow()
         {
@@ -176,22 +161,38 @@ namespace LivingRoomPirates.Demo
             {
                 GameObject go = all[i];
                 if (go == null || !go.activeInHierarchy) continue;
+
+                if (disableRayInteractors) DisableRayInteractorIfPresent(go);
+
                 string n = go.name.ToLowerInvariant();
                 bool isHandish = n.Contains("hand") || n.Contains("controller");
                 if (!isHandish) continue;
 
                 bool hasUsefulComponent = HasComponentName(go, "XRController")
-                    || HasComponentName(go, "XRRayInteractor")
                     || HasComponentName(go, "XRDirectInteractor")
-                    || HasComponentName(go, "ActionBasedController");
+                    || HasComponentName(go, "ActionBasedController")
+                    || HasComponentName(go, "HandPresence");
 
-                // The sample project uses blue visual hand meshes; keep them as a fallback
-                // only when clearly named left/right hand/controller.
                 if (!hasUsefulComponent && !(n.Contains("hand") && (n.Contains("left") || n.Contains("right"))))
                     continue;
 
                 if (n.Contains("left")) AddUnique(_leftHands, go.transform);
                 if (n.Contains("right")) AddUnique(_rightHands, go.transform);
+            }
+        }
+
+        private static void DisableRayInteractorIfPresent(GameObject go)
+        {
+            Component[] comps = go.GetComponents<Component>();
+            for (int i = 0; i < comps.Length; i++)
+            {
+                Component c = comps[i];
+                if (c == null) continue;
+                if (c.GetType().Name.Contains("XRRayInteractor") || c.GetType().Name.Contains("LineVisual"))
+                {
+                    Behaviour b = c as Behaviour;
+                    if (b != null) b.enabled = false;
+                }
             }
         }
 

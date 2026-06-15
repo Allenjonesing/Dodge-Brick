@@ -205,9 +205,15 @@ namespace LivingRoomPirates.Demo
             LrpVrHandInteractionFallback handFallback = Ensure<LrpVrHandInteractionFallback>(root);
             handFallback.enableVrHands = true;
             handFallback.directGrabRadius = 0.32f;
-            handFallback.rayDistance = 15f;
             handFallback.rescanInterval = 0.75f;
             handFallback.enabled = true;
+
+            LrpOceanMotionVisuals motionVisuals = Ensure<LrpOceanMotionVisuals>(root);
+            motionVisuals.shipRoot = shipRoot;
+            motionVisuals.waterOne = waterOne.transform;
+            motionVisuals.ocean = ocean;
+            motionVisuals.windLineCount = 18;
+            motionVisuals.enabled = true;
 
             // In Play mode Start() will also regenerate. In edit-time context menu this gives instant visuals.
             if (Application.isPlaying)

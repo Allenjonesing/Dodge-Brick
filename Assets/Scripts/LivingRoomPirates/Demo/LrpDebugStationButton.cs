@@ -2,7 +2,10 @@ using UnityEngine;
 
 namespace LivingRoomPirates.Demo
 {
-    /// <summary>Small physical station trigger usable by mouse, collision, or XR Simple Interactable.</summary>
+    /// <summary>
+    /// Physical station control. InvokeAction is kept for keyboard/mouse compatibility;
+    /// Begin/Drag/End are used by VR hands so grabbing does not instantly perform every action.
+    /// </summary>
     [DisallowMultipleComponent]
     public sealed class LrpDebugStationButton : MonoBehaviour
     {
@@ -17,7 +20,17 @@ namespace LivingRoomPirates.Demo
             RepairLeaks,
             SteerLeft,
             SteerRight,
-            CenterSteering
+            CenterSteering,
+
+            WheelKnob,
+            SailRope,
+            SailCleat,
+            AnchorCapstan,
+            AmmoSource,
+            CannonLoadZone,
+            CannonFuse,
+            RepairHammer,
+            RepairLeak
         }
 
         public Action action;
@@ -30,14 +43,25 @@ namespace LivingRoomPirates.Demo
 
         private void OnMouseDown() => InvokeAction();
 
-        private void OnTriggerEnter(Collider other)
+        // Collision should not auto-fire/toggle anymore. Hands use LrpVrHandInteractionFallback.
+        private void OnTriggerEnter(Collider other) { }
+
+        public void BeginPhysicalGrab(Vector3 handWorld)
         {
-            if (other == null) return;
-            string n = other.name.ToLowerInvariant();
-            if (other.CompareTag("Player") || n.Contains("hand") || n.Contains("controller") || n.Contains("cannonball") || n.Contains("hammer"))
-            {
-                InvokeAction();
-            }
+            if (sandbox == null) sandbox = FindObjectOfType<LivingRoomPiratesSurfaceDebugSandbox>();
+            if (sandbox != null) sandbox.BeginPhysicalInteraction(action, transform, handWorld);
+        }
+
+        public void UpdatePhysicalGrab(Vector3 handWorld)
+        {
+            if (sandbox == null) sandbox = FindObjectOfType<LivingRoomPiratesSurfaceDebugSandbox>();
+            if (sandbox != null) sandbox.UpdatePhysicalInteraction(action, transform, handWorld);
+        }
+
+        public void EndPhysicalGrab(Vector3 handWorld)
+        {
+            if (sandbox == null) sandbox = FindObjectOfType<LivingRoomPiratesSurfaceDebugSandbox>();
+            if (sandbox != null) sandbox.EndPhysicalInteraction(action, transform, handWorld);
         }
 
         public void InvokeAction()
@@ -57,6 +81,11 @@ namespace LivingRoomPirates.Demo
                 case Action.SteerLeft: sandbox.NudgeSteering(-0.18f); break;
                 case Action.SteerRight: sandbox.NudgeSteering(0.18f); break;
                 case Action.CenterSteering: sandbox.CenterSteering(); break;
+                case Action.AmmoSource: sandbox.BeginPhysicalInteraction(action, transform, transform.position); break;
+                case Action.CannonLoadZone: sandbox.LoadNearestCannonPublic(transform.position); break;
+                case Action.CannonFuse: sandbox.FireNearestCannonPublic(transform.position); break;
+                case Action.RepairHammer:
+                case Action.RepairLeak: sandbox.RepairLeaksPublic(); break;
             }
         }
     }

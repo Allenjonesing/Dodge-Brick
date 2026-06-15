@@ -1,0 +1,6 @@
+Round 48
+- Reworked Water1/debris motion around one ocean-local treadmill model.
+- Water1 grid parent now rotates opposite virtual ship heading; individual tiles do not rotate independently.
+- Water1 wave-coordinate offset is now the same virtual ship ocean position used by tile travel, so crests/troughs move with the treadmill.
+- Debris is parented to the Water1 tile-grid ocean frame and moves/recycles in ocean-local coordinates instead of ship/world axes.
+- Debris vertical snap remains surface-based, while horizontal motion is handled only by the authoritative treadmill.

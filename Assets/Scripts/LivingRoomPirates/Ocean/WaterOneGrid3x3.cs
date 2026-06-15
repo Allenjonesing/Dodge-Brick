@@ -45,6 +45,11 @@ public class WaterOneGrid3x3 : MonoBehaviour
     private const string GridRootName = "Water1_TileGridRoot_GROUP_ROTATES_AS_ONE";
     private float _lastTileSize;
     private Transform _gridRoot;
+    private Vector2 _waveTreadmillOffset;
+    [Header("Authoritative Ocean Coordinates")]
+    [Tooltip("Virtual ship position in ocean-space. The physical ship stays at the origin; this advances instead.")]
+    public Vector2 virtualShipOceanPosition = Vector2.zero;
+
 
     private void Start()
     {
@@ -66,18 +71,10 @@ public class WaterOneGrid3x3 : MonoBehaviour
         }
 
         EnsureGridRoot();
-        RefreshWaveCoordinateRoots();
+        AdvanceVirtualShip(Time.deltaTime);
         UpdateGroupTransform();
-
-        if (waterTravelEnabled)
-        {
-            MoveGeneratedTiles(Time.deltaTime);
-        }
-
-        if (waterTravelEnabled && recycleTilesAroundAnchor)
-        {
-            RecycleTiles();
-        }
+        PlaceTilesFromVirtualOceanPosition();
+        RefreshWaveCoordinateRoots();
     }
 
     private void EnsureGridRoot()
@@ -107,6 +104,8 @@ public class WaterOneGrid3x3 : MonoBehaviour
             rootDeformer.waveCoordinateRoot = _gridRoot;
             rootDeformer.useWaveCoordinateRoot = true;
             rootDeformer.useWorldSpaceWaveCoordinates = true;
+            rootDeformer.waveCoordinateOffset = _waveTreadmillOffset;
+            rootDeformer.useWaveCoordinateOffset = true;
         }
 
         if (_gridRoot == null) return;
@@ -117,6 +116,8 @@ public class WaterOneGrid3x3 : MonoBehaviour
             deformers[i].waveCoordinateRoot = _gridRoot;
             deformers[i].useWaveCoordinateRoot = true;
             deformers[i].useWorldSpaceWaveCoordinates = true;
+            deformers[i].waveCoordinateOffset = _waveTreadmillOffset;
+            deformers[i].useWaveCoordinateOffset = true;
         }
     }
 
@@ -125,17 +126,89 @@ public class WaterOneGrid3x3 : MonoBehaviour
         if (_gridRoot == null) return;
         Vector3 anchor = recycleAnchor != null ? recycleAnchor.position : Vector3.zero;
         _gridRoot.position = new Vector3(anchor.x, transform.position.y, anchor.z);
-        _gridRoot.rotation = Quaternion.Euler(0f, visualYawDegrees, 0f);
+
+        // Ship is locked physically facing +Z. A left/right heading change is shown
+        // by rotating the ocean frame the opposite way around the player.
+        _gridRoot.rotation = Quaternion.Euler(0f, -visualYawDegrees, 0f);
         _gridRoot.localScale = Vector3.one;
     }
 
-    private void MoveGeneratedTiles(float deltaTime)
+    private void AdvanceVirtualShip(float deltaTime)
     {
-        // Movement is in the grid parent's local space. Since the parent yaw is the
-        // current heading, local -Z is always "water coming toward the ship".
-        Vector3 localStep = Vector3.back * waterTravelSpeed * deltaTime;
-        ForEachTile(tile => tile.localPosition += localStep);
+        if (!waterTravelEnabled) return;
+
+        float step = waterTravelSpeed * deltaTime;
+        if (step <= 0f) return;
+
+        Vector2 dir2 = waterTravelDirection.sqrMagnitude > 0.0001f ? waterTravelDirection.normalized : Vector2.up;
+
+        // This is the whole treadmill model:
+        // the physical ship never moves. Instead, the virtual ship position moves
+        // through ocean coordinates. Everything in/on the ocean renders relative
+        // to this value. If heading changes, this direction changes immediately.
+        virtualShipOceanPosition += dir2 * step;
+        _waveTreadmillOffset = virtualShipOceanPosition;
+        PushWaveOffsetToTiles();
     }
+
+    private void PlaceTilesFromVirtualOceanPosition()
+    {
+        if (_gridRoot == null) return;
+
+        float resolved = _lastTileSize > 0.01f ? _lastTileSize : ResolveTileSize();
+        if (resolved <= 0.01f) return;
+
+        // Pick the nearest ocean-space tile center under the virtual ship, then
+        // render a centered grid around it. Tile local position is oceanCoord - shipOceanPosition.
+        // The grid root rotation then converts that ocean-relative vector into the player view.
+        float baseX = Mathf.Round(virtualShipOceanPosition.x / resolved) * resolved;
+        float baseZ = Mathf.Round(virtualShipOceanPosition.y / resolved) * resolved;
+        Vector3 bias = Vector3.forward * (resolved * forwardBiasTiles);
+
+        ForEachTile(tile =>
+        {
+            if (tile == null) return;
+            if (!TryParseTileCoords(tile.name, out int ix, out int iz)) return;
+
+            Vector2 tileOceanCenter = new Vector2(baseX + ix * resolved, baseZ + iz * resolved);
+            Vector2 rel = tileOceanCenter - virtualShipOceanPosition;
+            tile.localPosition = new Vector3(rel.x, 0f, rel.y) + bias;
+            tile.localRotation = Quaternion.identity;
+        });
+    }
+
+    private static bool TryParseTileCoords(string name, out int x, out int z)
+    {
+        x = 0; z = 0;
+        if (string.IsNullOrEmpty(name) || !name.StartsWith("Water1_Tile_")) return false;
+        string rest = name.Substring("Water1_Tile_".Length);
+        string[] parts = rest.Split('_');
+        if (parts.Length < 2) return false;
+        return int.TryParse(parts[0], out x) && int.TryParse(parts[1], out z);
+    }
+
+    private void PushWaveOffsetToTiles()
+    {
+        OceanWaveMeshDeformer rootDeformer = GetComponent<OceanWaveMeshDeformer>();
+        if (rootDeformer != null)
+        {
+            rootDeformer.waveCoordinateOffset = _waveTreadmillOffset;
+            rootDeformer.useWaveCoordinateOffset = true;
+        }
+
+        if (_gridRoot == null) return;
+        OceanWaveMeshDeformer[] deformers = _gridRoot.GetComponentsInChildren<OceanWaveMeshDeformer>(true);
+        for (int i = 0; i < deformers.Length; i++)
+        {
+            if (deformers[i] == null) continue;
+            deformers[i].waveCoordinateOffset = _waveTreadmillOffset;
+            deformers[i].useWaveCoordinateOffset = true;
+        }
+    }
+
+    public Transform TileGridRoot => _gridRoot;
+
+    public Vector2 WaveTreadmillOffset => _waveTreadmillOffset;
 
     private void RecycleTiles()
     {

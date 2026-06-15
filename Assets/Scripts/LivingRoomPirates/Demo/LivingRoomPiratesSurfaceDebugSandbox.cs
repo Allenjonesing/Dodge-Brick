@@ -60,6 +60,7 @@ namespace LivingRoomPirates.Demo
 
         private readonly List<PrimitiveCannon> _cannons = new List<PrimitiveCannon>();
         private readonly List<Transform> _floaters = new List<Transform>();
+        private readonly Dictionary<Transform, Vector2> _floaterOceanPositions = new Dictionary<Transform, Vector2>();
         private readonly List<Transform> _leaks = new List<Transform>();
         private readonly List<Renderer> _leakSprays = new List<Renderer>();
         private Transform _debugRoot;
@@ -80,7 +81,23 @@ namespace LivingRoomPirates.Demo
         private bool _anchorLowered;
         private float _wheelTurns;
         private float _headingDegrees;
+        private Vector3 _currentOceanConveyorStepWorld;
+        private float _currentTravelSpeed;
         private float _autoFireTimer;
+
+        private LrpDebugStationButton.Action _activePhysicalAction;
+        private Transform _activePhysicalHandle;
+        private Vector3 _grabStartWorld;
+        private float _grabStartWheelAngle;
+        private float _grabStartWheelTurns;
+        private float _grabStartSailPercent;
+        private float _grabStartSailY;
+        private float _grabStartAnchorAngle;
+        private float _grabStartAnchorPercent;
+        private float _anchorPercent;
+        private bool _activeFuseFired;
+        private bool _sailRopeHeld;
+        private GameObject _heldCannonball;
 
         private void Start()
         {
@@ -100,6 +117,7 @@ namespace LivingRoomPirates.Demo
             ApplyWaterEscalatorSettings();
             MoveFloatersWithWaterTravel();
             AnimateStations();
+            UpdateContextualInteractionIndicators();
             UpdateLeaksAndHealth();
 
             if (autoFireCannons)
@@ -144,6 +162,7 @@ namespace LivingRoomPirates.Demo
 
             _cannons.Clear();
             _floaters.Clear();
+            _floaterOceanPositions.Clear();
             _leaks.Clear();
             _leakSprays.Clear();
 
@@ -153,6 +172,7 @@ namespace LivingRoomPirates.Demo
             BuildAnchorCapstan();
             BuildCannonsAndAmmo();
             BuildRepairToolsAndLeaks();
+            BuildTinyInstructionSigns();
             BuildFloatingSurfaceProps();
             DisableOldEnemyRaftsButKeepWaterTwo();
             ApplyWaterEscalatorSettings();
@@ -171,6 +191,7 @@ namespace LivingRoomPirates.Demo
         public void ToggleAnchor()
         {
             _anchorLowered = !_anchorLowered;
+            _anchorPercent = _anchorLowered ? 1f : 0f;
         }
 
         public void NudgeSteering(float turnDelta)
@@ -205,7 +226,7 @@ namespace LivingRoomPirates.Demo
             }
             cannon.loaded = true;
             SetCannonLoadedVisual(cannon, true);
-            SpawnLoadPuff(cannon.loadZone != null ? cannon.loadZone.position : cannon.root.position);
+            // Loaded state is shown physically by the barrel ball/lantern; no green flash.
         }
 
         public void FireNearestCannonPublic(Vector3 sourcePosition)
@@ -292,7 +313,9 @@ namespace LivingRoomPirates.Demo
 
             waterTravelEnabled = true;
             float steeringNormalized = Mathf.Clamp(_wheelTurns / Mathf.Max(0.001f, maxWheelTurns), -1f, 1f);
-            _headingDegrees += steeringNormalized * maxTurnRateDegreesPerSecond * Time.deltaTime;
+            // Wheel sign fix: positive wheel rotation should make the apparent ship turn left/right correctly.
+            // The ship itself stays locked; the ocean rotates/moves underneath it.
+            _headingDegrees -= steeringNormalized * maxTurnRateDegreesPerSecond * Time.deltaTime;
             Quaternion heading = Quaternion.Euler(0f, _headingDegrees, 0f);
             Vector3 forward = heading * Vector3.forward;
             waterTravelDirection = new Vector2(forward.x, forward.z).normalized;
@@ -308,11 +331,15 @@ namespace LivingRoomPirates.Demo
         {
             float speed = EffectiveTravelSpeed();
             bool enabledTravel = waterTravelEnabled && speed > 0.001f;
+            _currentTravelSpeed = enabledTravel ? speed : 0f;
+            Vector2 dir2 = waterTravelDirection.sqrMagnitude > 0.0001f ? waterTravelDirection.normalized : Vector2.up;
+            _currentOceanConveyorStepWorld = new Vector3(-dir2.x, 0f, -dir2.y) * _currentTravelSpeed * Time.deltaTime;
             if (ocean != null)
             {
                 ocean.enableWaterEscalatorTravel = enabledTravel;
                 ocean.waterEscalatorSpeed = speed;
-                ocean.waterEscalatorDirection = waterTravelDirection;
+                ocean.waterEscalatorDirection = dir2;
+                ocean.shipHeadingDegrees = _headingDegrees;
             }
             if (waterOne != null)
             {
@@ -328,6 +355,8 @@ namespace LivingRoomPirates.Demo
                     grid.waterTravelEnabled = enabledTravel;
                     grid.waterTravelSpeed = speed;
                     grid.waterTravelDirection = waterTravelDirection;
+                    // The water grid yaw is the virtual ocean/ship heading authority.
+                    // Tile movement remains in grid-local -Z, so world movement becomes opposite ship-forward.
                     grid.visualYawDegrees = _headingDegrees;
                 }
             }
@@ -386,27 +415,33 @@ namespace LivingRoomPirates.Demo
                 Vector3 knobPos = new Vector3(Mathf.Cos(a) * 0.34f, Mathf.Sin(a) * 0.34f, 0f);
                 CubeUnder(_wheel, "WheelSpoke_" + i, knobPos * 0.5f, new Vector3(0.035f, knobPos.magnitude, 0.035f), new Color(0.40f, 0.20f, 0.07f)).transform.localRotation = Quaternion.Euler(0f, 0f, -i * 45f);
                 GameObject knob = SphereUnder(_wheel, "WheelKnob_GRAB_STEER_" + i, knobPos, Vector3.one * 0.085f, i == 0 ? new Color(1f, 0.72f, 0.12f) : new Color(0.58f, 0.32f, 0.10f));
-                AddStationButton(knob, i < 4 ? LrpDebugStationButton.Action.SteerRight : LrpDebugStationButton.Action.SteerLeft);
+                AddStationButton(knob, LrpDebugStationButton.Action.WheelKnob);
                 if (i == 0) _goldKnob = knob.transform;
             }
         }
 
         private void BuildSailRig()
         {
-            float z = -1.42f;
-            Cube("MastBehindSteering", new Vector3(0f, 1.15f, z), new Vector3(0.12f, 2.1f, 0.12f), new Color(0.36f, 0.18f, 0.07f));
-            Cube("YardArm", new Vector3(0f, 1.82f, z), new Vector3(1.55f, 0.08f, 0.08f), new Color(0.36f, 0.18f, 0.07f));
-            _sail = Cube("VariableSail_SAIL_PERCENT_CONTROLS_SPEED", new Vector3(0f, 1.33f, z + 0.03f), new Vector3(1.20f, 1.05f, 0.035f), new Color(0.92f, 0.86f, 0.64f)).transform;
+            float z = 0.02f;
+            Cube("TallCenteredMast", new Vector3(0f, 1.70f, z), new Vector3(0.11f, 3.40f, 0.11f), new Color(0.36f, 0.18f, 0.07f));
+            Cube("HighYardArm", new Vector3(0f, 3.12f, z), new Vector3(1.35f, 0.07f, 0.07f), new Color(0.36f, 0.18f, 0.07f));
+            _sail = Cube("VariableSail_HIGH_LOOK_UP_SAIL", new Vector3(0f, 2.42f, z + 0.03f), new Vector3(1.05f, 1.20f, 0.035f), new Color(0.92f, 0.86f, 0.64f)).transform;
             // Main control rope is a visible loop: mast top -> pulley -> grabbable tail -> cleat.
-            RopeBetween("SailRopeAttachedToMast_top_to_pulley", new Vector3(0f, 1.82f, z + 0.02f), new Vector3(-0.86f, 1.42f, z + 0.10f), 0.022f);
-            RopeBetween("SailRopeAttachedToMast_pulley_to_tail", new Vector3(-0.86f, 1.42f, z + 0.10f), new Vector3(-0.86f, 0.60f, z + 0.10f), 0.022f);
-            Cube("SailPulleyBlock_touching_rope", new Vector3(-0.86f, 1.42f, z + 0.10f), new Vector3(0.13f, 0.10f, 0.08f), new Color(0.36f, 0.18f, 0.07f));
-            _sailRope = Cylinder("SailMainRope_HANDLE_PULL_DOWN_TO_RAISE", new Vector3(-0.86f, 0.82f, z + 0.10f), new Vector3(0.045f, 0.26f, 0.045f), new Color(0.80f, 0.68f, 0.42f)).transform;
-            AddStationButton(_sailRope.gameObject, LrpDebugStationButton.Action.ToggleSail);
-            AddStationButton(Cylinder("SailRaiseRope_HANDLE_GRAB_OR_E", new Vector3(-1.08f, 0.80f, z + 0.10f), new Vector3(0.04f, 0.24f, 0.04f), new Color(0.86f, 0.75f, 0.50f)), LrpDebugStationButton.Action.RaiseSail);
-            AddStationButton(Cylinder("SailLowerRope_HANDLE_GRAB_OR_Q", new Vector3(-0.64f, 0.80f, z + 0.10f), new Vector3(0.04f, 0.24f, 0.04f), new Color(0.86f, 0.75f, 0.50f)), LrpDebugStationButton.Action.LowerSail);
-            _cleat = Cube("SailCleat_TIE_ROPE_HERE_TO_HOLD_PERCENT", new Vector3(-0.86f, 0.48f, z + 0.14f), new Vector3(0.32f, 0.08f, 0.10f), new Color(0.45f, 0.23f, 0.08f)).transform;
-            RopeBetween("SailRopeTail_to_cleat", new Vector3(-0.86f, 0.60f, z + 0.10f), new Vector3(-0.86f, 0.48f, z + 0.14f), 0.02f);
+            RopeBetween("SailRopeAttachedToMast_top_to_pulley", new Vector3(0f, 3.12f, z + 0.02f), new Vector3(-0.78f, 2.48f, z + 0.10f), 0.022f);
+            RopeBetween("SailRopeAttachedToMast_pulley_to_tail", new Vector3(-0.78f, 2.48f, z + 0.10f), new Vector3(-0.78f, 0.60f, z + 0.10f), 0.022f);
+            Cube("SailPulleyBlock_touching_rope", new Vector3(-0.78f, 2.48f, z + 0.10f), new Vector3(0.13f, 0.10f, 0.08f), new Color(0.36f, 0.18f, 0.07f));
+            _sailRope = Cylinder("SailMainRope_HANDLE_PULL_DOWN_TO_RAISE", new Vector3(-0.78f, 0.82f, z + 0.10f), new Vector3(0.045f, 0.26f, 0.045f), new Color(0.80f, 0.68f, 0.42f)).transform;
+            AddStationButton(_sailRope.gameObject, LrpDebugStationButton.Action.SailRope);
+            // Multiple hand-over-hand rope grips so the player can pull, release, grab higher, and pull again.
+            for (int ropeGrip = 0; ropeGrip < 6; ropeGrip++)
+            {
+                float gy = Mathf.Lerp(0.62f, 1.72f, ropeGrip / 5f);
+                GameObject grip = Cylinder("SailPulleyRopeGrip_HAND_OVER_HAND_" + ropeGrip, new Vector3(-0.78f, gy, z + 0.10f), new Vector3(0.038f, 0.18f, 0.038f), new Color(0.86f, 0.75f, 0.50f));
+                AddStationButton(grip, LrpDebugStationButton.Action.SailRope);
+            }
+            _cleat = Cube("SailCleat_TIE_ROPE_HERE_TO_HOLD_PERCENT", new Vector3(-0.78f, 0.48f, z + 0.14f), new Vector3(0.32f, 0.08f, 0.10f), new Color(0.45f, 0.23f, 0.08f)).transform;
+            AddStationButton(_cleat.gameObject, LrpDebugStationButton.Action.SailCleat);
+            RopeBetween("SailRopeTail_to_cleat", new Vector3(-0.78f, 0.60f, z + 0.10f), new Vector3(-0.78f, 0.48f, z + 0.14f), 0.02f);
             for (int i = 0; i < 5; i++) RopeBetween("SailRiggingRope_" + i, new Vector3(-0.7f + i * 0.35f, 1.80f, z + 0.05f), new Vector3(-1.0f + i * 0.5f, 0.62f, z + 0.45f), 0.018f);
             GameObject lantern = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             lantern.name = "SailPercentLantern_round_indicator";
@@ -425,13 +460,13 @@ namespace LivingRoomPirates.Demo
             _anchor.localRotation = Quaternion.identity;
             _anchorWheel = Cylinder("HorizontalAnchorCapstan_GRAB_OR_R", new Vector3(0.72f, 0.62f, 0.98f), new Vector3(0.30f, 0.06f, 0.30f), new Color(0.18f, 0.18f, 0.20f)).transform;
             _anchorWheel.localRotation = Quaternion.identity;
-            AddStationButton(_anchorWheel.gameObject, LrpDebugStationButton.Action.ToggleAnchor);
+            AddStationButton(_anchorWheel.gameObject, LrpDebugStationButton.Action.AnchorCapstan);
             for (int i = 0; i < 8; i++)
             {
                 float a = i * Mathf.PI * 2f / 8f;
                 Vector3 p = new Vector3(Mathf.Cos(a) * 0.28f, 0f, Mathf.Sin(a) * 0.28f);
                 GameObject knob = SphereUnder(_anchorWheel, "AnchorCapstanKnob_GRAB_" + i, p, Vector3.one * 0.075f, new Color(0.35f, 0.35f, 0.38f));
-                AddStationButton(knob, LrpDebugStationButton.Action.ToggleAnchor);
+                AddStationButton(knob, LrpDebugStationButton.Action.AnchorCapstan);
             }
             CylinderUnder(_anchor, "AnchorChain", new Vector3(0f, 0.12f, 0f), new Vector3(0.035f, 0.65f, 0.035f), Color.gray);
             CubeUnder(_anchor, "AnchorHook", new Vector3(0f, -0.28f, 0f), new Vector3(0.26f, 0.22f, 0.08f), new Color(0.08f, 0.08f, 0.08f));
@@ -446,12 +481,15 @@ namespace LivingRoomPirates.Demo
 
         private void BuildCannonsAndAmmo()
         {
-            AddCannon("BowCannon", new Vector3(0f, 0.42f, 1.0f), Quaternion.identity);
-            AddCannon("PortCannon", new Vector3(-0.95f, 0.42f, 0f), Quaternion.Euler(0f, -90f, 0f));
-            AddCannon("StarboardCannon", new Vector3(0.95f, 0.42f, 0f), Quaternion.Euler(0f, 90f, 0f));
-            AddCannon("SternCannon", new Vector3(0f, 0.42f, -1.0f), Quaternion.Euler(0f, 180f, 0f));
-            BuildCannonballPile("InfiniteAmmoPile_Port_GRAB_SPAWNS_BALL", new Vector3(-0.55f, 0.18f, -0.42f));
-            BuildCannonballPile("InfiniteAmmoPile_Starboard_GRAB_SPAWNS_BALL", new Vector3(0.55f, 0.18f, -0.42f));
+            bool tinyBoat = _layoutScale <= 0.72f;
+            AddCannon("BowCannon", new Vector3(0f, 0.42f, 0.82f), Quaternion.identity);
+            if (!tinyBoat)
+            {
+                AddCannon("PortCannon", new Vector3(-0.95f, 0.42f, 0f), Quaternion.Euler(0f, -90f, 0f));
+                AddCannon("StarboardCannon", new Vector3(0.95f, 0.42f, 0f), Quaternion.Euler(0f, 90f, 0f));
+                AddCannon("SternCannon", new Vector3(0f, 0.42f, -1.0f), Quaternion.Euler(0f, 180f, 0f));
+            }
+            BuildCannonballPile("InfiniteAmmoPile_GRAB_SPAWNS_BALL", new Vector3(-0.45f, 0.18f, -0.36f));
         }
 
         private void AddCannon(string name, Vector3 localPosition, Quaternion localRotation)
@@ -460,34 +498,34 @@ namespace LivingRoomPirates.Demo
             pivot.transform.SetParent(_debugRoot, false);
             pivot.transform.localPosition = KeepInsidePlayableDeck(localPosition);
             pivot.transform.localRotation = localRotation;
-            pivot.transform.localScale = Vector3.one * 1.18f;
-            CubeUnder(pivot.transform, name + "_Base", Vector3.zero, new Vector3(0.42f, 0.2f, 0.36f), new Color(0.25f, 0.12f, 0.04f));
+            pivot.transform.localScale = Vector3.one * (_layoutScale <= 0.72f ? 0.82f : 1.0f);
+            CubeUnder(pivot.transform, name + "_SmallWoodCradle", Vector3.zero, new Vector3(0.30f, 0.10f, 0.24f), new Color(0.25f, 0.12f, 0.04f));
             GameObject barrel = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             barrel.name = name + "_Barrel";
             barrel.transform.SetParent(pivot.transform, false);
             barrel.transform.localPosition = new Vector3(0f, 0.09f, 0.20f);
             barrel.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            barrel.transform.localScale = new Vector3(0.16f, 0.42f, 0.16f);
+            barrel.transform.localScale = new Vector3(0.13f, 0.34f, 0.13f);
             SetColor(barrel, Color.black);
             Transform firePoint = new GameObject("FirePoint").transform;
             firePoint.SetParent(pivot.transform, false);
             firePoint.localPosition = new Vector3(0f, 0.09f, 0.78f);
             Transform loadZone = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
-            loadZone.name = name + "_MuzzleLoadZone_release_ball_here";
+            loadZone.name = name + "_BreechLoadZone_release_ball_here";
             loadZone.SetParent(pivot.transform, false);
-            loadZone.localPosition = new Vector3(0f, 0.09f, 0.58f);
-            loadZone.localScale = Vector3.one * 0.20f;
+            loadZone.localPosition = new Vector3(0f, 0.16f, 0.16f);
+            loadZone.localScale = Vector3.one * 0.24f;
             // Invisible load zone: keep the collider/interactable, remove the distracting blue ball visual.
             SetColor(loadZone.gameObject, new Color(1f, 0.76f, 0.18f, 0.10f));
             Renderer loadZoneRenderer = loadZone.GetComponent<Renderer>();
             if (loadZoneRenderer != null) loadZoneRenderer.enabled = false;
-            AddStationButton(loadZone.gameObject, LrpDebugStationButton.Action.LoadCannons);
-            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_TOP", new Vector3(0f, 0.22f, 0.58f), new Vector3(0.24f, 0.025f, 0.025f), new Color(1f, 0.72f, 0.16f));
-            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_BOTTOM", new Vector3(0f, -0.04f, 0.58f), new Vector3(0.24f, 0.025f, 0.025f), new Color(1f, 0.72f, 0.16f));
-            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_LEFT", new Vector3(-0.13f, 0.09f, 0.58f), new Vector3(0.025f, 0.24f, 0.025f), new Color(1f, 0.72f, 0.16f));
-            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_RIGHT", new Vector3(0.13f, 0.09f, 0.58f), new Vector3(0.025f, 0.24f, 0.025f), new Color(1f, 0.72f, 0.16f));
+            AddStationButton(loadZone.gameObject, LrpDebugStationButton.Action.CannonLoadZone);
+            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_TOP", new Vector3(0f, 0.22f, 0.58f), new Vector3(0.24f, 0.025f, 0.025f), new Color(0.32f, 0.22f, 0.08f));
+            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_BOTTOM", new Vector3(0f, -0.04f, 0.58f), new Vector3(0.24f, 0.025f, 0.025f), new Color(0.32f, 0.22f, 0.08f));
+            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_LEFT", new Vector3(-0.13f, 0.09f, 0.58f), new Vector3(0.025f, 0.24f, 0.025f), new Color(0.32f, 0.22f, 0.08f));
+            CubeUnder(pivot.transform, name + "_MuzzleLoadGuide_RIGHT", new Vector3(0.13f, 0.09f, 0.58f), new Vector3(0.025f, 0.24f, 0.025f), new Color(0.32f, 0.22f, 0.08f));
             GameObject fuse = CylinderUnder(pivot.transform, name + "_FusePullRope_FIRE_LOADED_ONLY", new Vector3(0.25f, 0.13f, 0.05f), new Vector3(0.035f, 0.24f, 0.035f), new Color(0.76f, 0.58f, 0.25f));
-            AddStationButton(fuse, LrpDebugStationButton.Action.FireCannons);
+            AddStationButton(fuse, LrpDebugStationButton.Action.CannonFuse);
             GameObject light = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             light.name = name + "_LoadedLantern_round_indicator";
             light.transform.SetParent(pivot.transform, false);
@@ -516,19 +554,19 @@ namespace LivingRoomPirates.Demo
                 ball.name = "InfinitePileVisualBall_grab_source_" + i;
                 ball.transform.SetParent(pile, false);
                 ball.transform.localPosition = new Vector3(Mathf.Cos(a) * 0.16f, (i/4)*0.10f, Mathf.Sin(a) * 0.11f);
-                ball.transform.localScale = Vector3.one * 0.13f;
+                ball.transform.localScale = Vector3.one * 0.105f;
                 SetColor(ball, Color.black);
-                AddStationButton(ball, LrpDebugStationButton.Action.LoadCannons);
+                AddStationButton(ball, LrpDebugStationButton.Action.AmmoSource);
             }
             GameObject source = CubeUnder(pile, "AMMO_SOURCE_GRAB_B_SPAWNS_AND_LOADS_NEAREST", new Vector3(0f, -0.13f, 0f), new Vector3(0.55f, 0.06f, 0.40f), new Color(0.10f, 0.16f, 0.10f));
-            AddStationButton(source, LrpDebugStationButton.Action.LoadCannons);
+            AddStationButton(source, LrpDebugStationButton.Action.AmmoSource);
         }
 
         private void BuildRepairToolsAndLeaks()
         {
             GameObject hammer = Cube("RepairHammer_GRAB_OR_H", new Vector3(-0.42f, 0.36f, -0.18f), new Vector3(0.12f, 0.12f, 0.55f), new Color(0.45f, 0.25f, 0.10f));
             CubeUnder(hammer.transform, "RepairHammerHead", new Vector3(0f, 0.10f, 0.24f), new Vector3(0.30f, 0.18f, 0.16f), new Color(0.45f, 0.45f, 0.48f));
-            AddStationButton(hammer, LrpDebugStationButton.Action.RepairLeaks);
+            AddStationButton(hammer, LrpDebugStationButton.Action.RepairHammer);
             _healthIndicator = Cube("SHIP_HEALTH_INDICATOR_PHYSICAL_BAR", new Vector3(0f, 0.22f, -0.18f), new Vector3(0.90f, 0.08f, 0.04f), Color.green).GetComponent<Renderer>();
             Vector3[] positions = { new Vector3(-0.65f,0.20f,0.62f), new Vector3(0.70f,0.20f,0.28f), new Vector3(-0.18f,0.20f,-0.66f), new Vector3(0.25f,0.20f,0.82f) };
             int count = Mathf.Clamp(leakCount, 0, positions.Length);
@@ -538,10 +576,77 @@ namespace LivingRoomPirates.Demo
                 leak.SetParent(_debugRoot, false);
                 leak.localPosition = positions[i];
                 GameObject hole = CubeUnder(leak, "LeakHole", Vector3.zero, new Vector3(0.22f,0.035f,0.22f), Color.black);
-                AddStationButton(hole, LrpDebugStationButton.Action.RepairLeaks);
+                AddStationButton(hole, LrpDebugStationButton.Action.RepairLeak);
                 GameObject spray = CylinderUnder(leak, "LeakWaterSpray", new Vector3(0f,0.26f,0f), new Vector3(0.045f,0.38f,0.045f), new Color(0.35f,0.70f,1f,0.85f));
                 _leaks.Add(leak);
                 _leakSprays.Add(spray.GetComponent<Renderer>());
+            }
+        }
+
+
+        private void BuildTinyInstructionSigns()
+        {
+            SmallWoodSign("Sign_Wheel", "GRAB KNOB\nTURN WHEEL", new Vector3(0.42f, 0.42f, -0.72f));
+            SmallWoodSign("Sign_Sail", "PULL ROPE DOWN\nRELEASE AT CLEAT", new Vector3(-0.35f, 0.46f, 0.14f));
+            SmallWoodSign("Sign_Anchor", "TURN CAPSTAN\nDOWN = STOP", new Vector3(0.36f, 0.42f, 0.88f));
+            SmallWoodSign("Sign_Cannon", "GRAB BALL\nLOAD BREECH\nPULL FUSE", new Vector3(0.42f, 0.30f, 0.38f));
+        }
+
+        private GameObject SmallWoodSign(string name, string text, Vector3 localPosition)
+        {
+            GameObject back = Cube(name + "_board", localPosition, new Vector3(0.34f, 0.18f, 0.035f), new Color(0.42f, 0.22f, 0.08f));
+            GameObject label = new GameObject(name + "_small_text");
+            label.transform.SetParent(back.transform, false);
+            label.transform.localPosition = new Vector3(0f, 0f, -0.021f);
+            label.transform.localRotation = Quaternion.identity;
+            TextMesh tm = label.AddComponent<TextMesh>();
+            tm.text = text;
+            tm.fontSize = 22;
+            tm.characterSize = 0.018f;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.alignment = TextAlignment.Center;
+            tm.color = Color.black;
+            Renderer textRenderer = label.GetComponent<Renderer>();
+            if (textRenderer != null)
+            {
+                textRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                textRenderer.receiveShadows = false;
+                textRenderer.sortingOrder = 0;
+            }
+            LrpSignTextDepthGuard guard = label.AddComponent<LrpSignTextDepthGuard>();
+            guard.boardRoot = back.transform;
+            return back;
+        }
+
+        private void UpdateContextualInteractionIndicators()
+        {
+            // Cannon load zones should guide you ONLY while holding a cannonball. Empty hands should not see them.
+            // The sail cleat should guide you ONLY while holding a sail rope.
+            for (int i = LrpXrInteractableBridge.All.Count - 1; i >= 0; i--)
+            {
+                LrpXrInteractableBridge bridge = LrpXrInteractableBridge.All[i];
+                if (bridge == null || bridge.button == null) continue;
+
+                bool force = false;
+                Color color = new Color(1f, 0.92f, 0.15f, 0.30f);
+                switch (bridge.button.action)
+                {
+                    case LrpDebugStationButton.Action.CannonLoadZone:
+                        bridge.showHoverIndicator = _heldCannonball != null;
+                        force = _heldCannonball != null;
+                        color = new Color(0.20f, 1f, 0.25f, 0.28f);
+                        break;
+                    case LrpDebugStationButton.Action.SailCleat:
+                        bridge.showHoverIndicator = _sailRopeHeld;
+                        force = _sailRopeHeld;
+                        color = new Color(1f, 0.92f, 0.15f, 0.32f);
+                        break;
+                    default:
+                        bridge.showHoverIndicator = true;
+                        break;
+                }
+                bridge.forceShowIndicator = force;
+                bridge.forcedIndicatorColor = color;
             }
         }
 
@@ -575,27 +680,82 @@ namespace LivingRoomPirates.Demo
             follower.alignToNormal = true;
             follower.moveWithWaterConveyor = false;
             _floaters.Add(go.transform);
+            _floaterOceanPositions[go.transform] = WorldToOcean2(go.transform.position);
         }
 
         private void MoveFloatersWithWaterTravel()
         {
-            if (!waterTravelEnabled || _floaters.Count == 0) return;
-            Vector2 dir = waterTravelDirection.sqrMagnitude > 0.0001f ? waterTravelDirection.normalized : Vector2.up;
-            Vector3 step = new Vector3(-dir.x, 0f, -dir.y) * EffectiveTravelSpeed() * Time.deltaTime;
-            Vector3 anchor = shipRoot != null ? shipRoot.position : Vector3.zero;
+            if (_floaters.Count == 0) return;
+
+            // Ground-truth model:
+            // 1) Each debris object owns a fixed ocean-space coordinate.
+            // 2) The virtual ship position advances through that ocean-space.
+            // 3) Rendered world position is oceanCoord - virtualShipOceanPosition, rotated by -heading.
+            // Therefore debris does NOT rotate with the ship and does NOT get manually shoved by a fake conveyor.
+            Vector2 shipOcean = GetVirtualShipOceanPosition();
+            float heading = _headingDegrees;
+            Vector3 center = shipRoot != null ? shipRoot.position : Vector3.zero;
             float half = Mathf.Max(8f, debrisRecyclerHalfRange);
             float full = half * 2f;
+
             for (int i = _floaters.Count - 1; i >= 0; i--)
             {
                 Transform f = _floaters[i];
-                if (f == null) { _floaters.RemoveAt(i); continue; }
-                Vector3 p = f.position + step;
-                while (p.x - anchor.x > half) p.x -= full;
-                while (p.x - anchor.x < -half) p.x += full;
-                while (p.z - anchor.z > half) p.z -= full;
-                while (p.z - anchor.z < -half) p.z += full;
+                if (f == null)
+                {
+                    _floaters.RemoveAt(i);
+                    continue;
+                }
+
+                if (f.parent != null) f.SetParent(null, true);
+
+                SurfaceFloatFollower follower = f.GetComponent<SurfaceFloatFollower>();
+                if (follower != null) follower.moveWithWaterConveyor = false;
+
+                if (!_floaterOceanPositions.TryGetValue(f, out Vector2 oceanPos))
+                {
+                    oceanPos = WorldToOcean2(f.position);
+                    _floaterOceanPositions[f] = oceanPos;
+                }
+
+                // Recycle in ship/ocean-relative coordinates, not by world-space parent rotation.
+                Vector2 rel = oceanPos - shipOcean;
+                while (rel.x > half) { rel.x -= full; oceanPos.x -= full; }
+                while (rel.x < -half) { rel.x += full; oceanPos.x += full; }
+                while (rel.y > half) { rel.y -= full; oceanPos.y -= full; }
+                while (rel.y < -half) { rel.y += full; oceanPos.y += full; }
+                _floaterOceanPositions[f] = oceanPos;
+
+                Vector3 p = OceanToWorld(oceanPos, center, heading, shipOcean);
                 f.position = p;
             }
+        }
+
+        private Vector2 GetVirtualShipOceanPosition()
+        {
+            if (waterOne != null)
+            {
+                WaterOneGrid3x3 grid = waterOne.GetComponent<WaterOneGrid3x3>();
+                if (grid != null) return grid.virtualShipOceanPosition;
+            }
+            return Vector2.zero;
+        }
+
+        private Vector2 WorldToOcean2(Vector3 world)
+        {
+            Vector3 center = shipRoot != null ? shipRoot.position : Vector3.zero;
+            Vector3 relWorld = world - center;
+            // Render is R(-heading) * oceanRel, so inverse is R(+heading).
+            Vector3 relOcean = Quaternion.Euler(0f, _headingDegrees, 0f) * relWorld;
+            Vector2 shipOcean = GetVirtualShipOceanPosition();
+            return shipOcean + new Vector2(relOcean.x, relOcean.z);
+        }
+
+        private static Vector3 OceanToWorld(Vector2 oceanPos, Vector3 center, float headingDegrees, Vector2 shipOcean)
+        {
+            Vector2 rel = oceanPos - shipOcean;
+            Vector3 relWorld = Quaternion.Euler(0f, -headingDegrees, 0f) * new Vector3(rel.x, 0f, rel.y);
+            return center + relWorld;
         }
 
         private void AnimateStations()
@@ -610,7 +770,7 @@ namespace LivingRoomPirates.Demo
                 Vector3 s = _sail.localScale;
                 s.y = Mathf.Lerp(s.y, Mathf.Lerp(0.08f, 1.05f, pct), Time.deltaTime * 5f);
                 _sail.localScale = s;
-                _sail.localPosition = Vector3.Lerp(_sail.localPosition, new Vector3(0f, Mathf.Lerp(1.82f, 1.33f, pct), -1.39f), Time.deltaTime * 5f);
+                _sail.localPosition = Vector3.Lerp(_sail.localPosition, new Vector3(0f, Mathf.Lerp(3.05f, 2.38f, pct), 0.05f), Time.deltaTime * 5f);
             }
             if (_sailRope != null)
             {
@@ -620,11 +780,11 @@ namespace LivingRoomPirates.Demo
             }
             if (_anchor != null)
             {
-                _anchor.localPosition = Vector3.Lerp(_anchor.localPosition, new Vector3(0f, _anchorLowered ? -0.78f : 0.16f, 1.08f), Time.deltaTime * 4f);
+                _anchor.localPosition = Vector3.Lerp(_anchor.localPosition, new Vector3(0f, Mathf.Lerp(0.16f, -0.78f, _anchorPercent), 1.08f), Time.deltaTime * 4f);
             }
             if (_anchorWheel != null)
             {
-                _anchorWheel.localRotation = Quaternion.Euler(0f, Time.time * (_anchorLowered ? 0f : 0f) + (_anchorLowered ? 220f : 0f), 0f);
+                _anchorWheel.localRotation = Quaternion.Euler(0f, _anchorPercent * 220f, 0f);
             }
             if (_sailIndicator != null) _sailIndicator.material.color = Color.Lerp(new Color(0.55f,0.45f,0.12f), new Color(0.15f,0.85f,0.20f), Mathf.Clamp01(sailPercent));
             if (_anchorIndicator != null) _anchorIndicator.material.color = _anchorLowered ? new Color(0.85f,0.12f,0.08f) : new Color(0.15f,0.85f,0.20f);
@@ -728,6 +888,167 @@ namespace LivingRoomPirates.Demo
             BoomPulse pulse = flash.AddComponent<BoomPulse>(); pulse.duration = 0.35f; pulse.maxScale = 1.05f;
         }
 
+
+        public void BeginPhysicalInteraction(LrpDebugStationButton.Action action, Transform handle, Vector3 handWorld)
+        {
+            _activePhysicalAction = action;
+            _activePhysicalHandle = handle;
+            _grabStartWorld = handWorld;
+            _activeFuseFired = false;
+
+            switch (action)
+            {
+                case LrpDebugStationButton.Action.WheelKnob:
+                    _grabStartWheelAngle = WheelHandAngle(handWorld);
+                    _grabStartWheelTurns = _wheelTurns;
+                    break;
+                case LrpDebugStationButton.Action.SailRope:
+                    _sailRopeHeld = true;
+                    _grabStartSailPercent = sailPercent;
+                    _grabStartSailY = (_debugRoot != null ? _debugRoot.InverseTransformPoint(handWorld).y : handWorld.y);
+                    break;
+                case LrpDebugStationButton.Action.AnchorCapstan:
+                    _grabStartAnchorAngle = AnchorHandAngle(handWorld);
+                    _grabStartAnchorPercent = _anchorPercent;
+                    break;
+                case LrpDebugStationButton.Action.AmmoSource:
+                    SpawnHeldCannonball(handWorld);
+                    break;
+                case LrpDebugStationButton.Action.RepairHammer:
+                case LrpDebugStationButton.Action.RepairLeak:
+                    RepairLeaksPublic();
+                    break;
+            }
+        }
+
+        public void UpdatePhysicalInteraction(LrpDebugStationButton.Action action, Transform handle, Vector3 handWorld)
+        {
+            switch (action)
+            {
+                case LrpDebugStationButton.Action.WheelKnob:
+                {
+                    float current = WheelHandAngle(handWorld);
+                    float delta = Mathf.DeltaAngle(_grabStartWheelAngle, current) / 360f;
+                    _wheelTurns = Mathf.Clamp(_grabStartWheelTurns + delta, -maxWheelTurns, maxWheelTurns);
+                    break;
+                }
+                case LrpDebugStationButton.Action.SailRope:
+                {
+                    float y = _debugRoot != null ? _debugRoot.InverseTransformPoint(handWorld).y : handWorld.y;
+                    float pullDown = _grabStartSailY - y;
+                    sailPercent = Mathf.Clamp01(_grabStartSailPercent + pullDown * 1.15f);
+                    break;
+                }
+                case LrpDebugStationButton.Action.AnchorCapstan:
+                {
+                    float current = AnchorHandAngle(handWorld);
+                    float delta = Mathf.DeltaAngle(_grabStartAnchorAngle, current) / 220f;
+                    _anchorPercent = Mathf.Clamp01(_grabStartAnchorPercent + delta);
+                    _anchorLowered = _anchorPercent >= 0.5f;
+                    break;
+                }
+                case LrpDebugStationButton.Action.CannonFuse:
+                {
+                    if (!_activeFuseFired && Vector3.Distance(_grabStartWorld, handWorld) > 0.24f)
+                    {
+                        _activeFuseFired = true;
+                        FireNearestCannonPublic(handle != null ? handle.position : handWorld);
+                    }
+                    break;
+                }
+                case LrpDebugStationButton.Action.AmmoSource:
+                    if (_heldCannonball != null) _heldCannonball.transform.position = handWorld;
+                    break;
+                case LrpDebugStationButton.Action.CannonLoadZone:
+                    if (_heldCannonball != null) _heldCannonball.transform.position = handWorld;
+                    break;
+            }
+        }
+
+        public void EndPhysicalInteraction(LrpDebugStationButton.Action action, Transform handle, Vector3 handWorld)
+        {
+            switch (action)
+            {
+                case LrpDebugStationButton.Action.SailRope:
+                    // Tie-off only if released near the cleat. Otherwise the rope slips and the sail falls.
+                    if (_cleat == null || Vector3.Distance(handWorld, _cleat.position) > 0.34f)
+                        sailPercent = 0f;
+                    _sailRopeHeld = false;
+                    break;
+                case LrpDebugStationButton.Action.AmmoSource:
+                case LrpDebugStationButton.Action.CannonLoadZone:
+                    FinishHeldCannonball(handWorld);
+                    break;
+            }
+            if (action != LrpDebugStationButton.Action.SailRope && _activePhysicalAction == LrpDebugStationButton.Action.SailRope) _sailRopeHeld = false;
+            _activePhysicalHandle = null;
+            _activeFuseFired = false;
+        }
+
+        private float WheelHandAngle(Vector3 handWorld)
+        {
+            if (_wheel == null) return 0f;
+            // IMPORTANT: sample in the ship/debug-root space, not wheel local space.
+            // Wheel local space rotates with the wheel and causes runaway/spin feedback.
+            Vector3 hand = _debugRoot != null ? _debugRoot.InverseTransformPoint(handWorld) : handWorld;
+            Vector3 center = _debugRoot != null ? _debugRoot.InverseTransformPoint(_wheel.position) : _wheel.position;
+            Vector3 d = hand - center;
+            return Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+        }
+
+        private float AnchorHandAngle(Vector3 handWorld)
+        {
+            if (_anchorWheel == null) return 0f;
+            Vector3 hand = _debugRoot != null ? _debugRoot.InverseTransformPoint(handWorld) : handWorld;
+            Vector3 center = _debugRoot != null ? _debugRoot.InverseTransformPoint(_anchorWheel.position) : _anchorWheel.position;
+            Vector3 d = hand - center;
+            return Mathf.Atan2(d.z, d.x) * Mathf.Rad2Deg;
+        }
+
+        private void SpawnHeldCannonball(Vector3 handWorld)
+        {
+            if (_heldCannonball != null) Destroy(_heldCannonball);
+            _heldCannonball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            _heldCannonball.name = "HeldManualCannonball_release_at_breech";
+            _heldCannonball.transform.position = handWorld;
+            _heldCannonball.transform.localScale = Vector3.one * 0.13f;
+            SetColor(_heldCannonball, Color.black);
+            Collider col = _heldCannonball.GetComponent<Collider>();
+            if (col != null) col.isTrigger = true;
+        }
+
+        private void FinishHeldCannonball(Vector3 handWorld)
+        {
+            if (_heldCannonball == null) return;
+            PrimitiveCannon best = null;
+            float bestD = 0.42f * 0.42f;
+            for (int i = 0; i < _cannons.Count; i++)
+            {
+                PrimitiveCannon c = _cannons[i];
+                if (c == null || c.loaded || c.loadZone == null) continue;
+                float d = (c.loadZone.position - handWorld).sqrMagnitude;
+                if (d < bestD) { bestD = d; best = c; }
+            }
+
+            if (best != null)
+            {
+                best.loaded = true;
+                SetCannonLoadedVisual(best, true);
+                // Loaded state is shown physically by the barrel ball/lantern; no green flash.
+                Destroy(_heldCannonball);
+            }
+            else
+            {
+                Collider col = _heldCannonball.GetComponent<Collider>();
+                if (col != null) col.isTrigger = false;
+                Rigidbody rb = _heldCannonball.AddComponent<Rigidbody>();
+                rb.mass = 0.35f;
+                rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
+                Destroy(_heldCannonball, 4f);
+            }
+            _heldCannonball = null;
+        }
+
         private void DisableOldEnemyRaftsButKeepWaterTwo()
         {
             foreach (GameObject go in GameObject.FindObjectsOfType<GameObject>())
@@ -809,12 +1130,14 @@ namespace LivingRoomPirates.Demo
             LrpXrInteractableBridge bridge = go.GetComponent<LrpXrInteractableBridge>();
             if (bridge == null) bridge = go.AddComponent<LrpXrInteractableBridge>();
             bridge.button = b;
-            bridge.invokeOnSelect = true;
-            bridge.invokeOnActivate = true;
-            bridge.continuousWhileSelected = action == LrpDebugStationButton.Action.SteerLeft
-                || action == LrpDebugStationButton.Action.SteerRight
-                || action == LrpDebugStationButton.Action.RaiseSail
-                || action == LrpDebugStationButton.Action.LowerSail;
+            bridge.invokeOnSelect = false;
+            bridge.invokeOnActivate = false;
+            bridge.continuousWhileSelected = action == LrpDebugStationButton.Action.WheelKnob
+                || action == LrpDebugStationButton.Action.SailRope
+                || action == LrpDebugStationButton.Action.AnchorCapstan
+                || action == LrpDebugStationButton.Action.CannonFuse
+                || action == LrpDebugStationButton.Action.AmmoSource
+                || action == LrpDebugStationButton.Action.CannonLoadZone;
             bridge.continuousInterval = 0.06f;
 
             TryAddXrSimpleInteractable(go);
