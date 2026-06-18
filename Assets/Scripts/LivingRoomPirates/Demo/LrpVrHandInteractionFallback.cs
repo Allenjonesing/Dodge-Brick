@@ -82,17 +82,17 @@ namespace LivingRoomPirates.Demo
                 if (pressedThisFrame && hover != null)
                 {
                     state.grabbed = hover;
-                    state.grabbed.BeginFromFallback(hand.position);
+                    state.grabbed.BeginFromFallback(hand.position, hand.rotation, node == XRNode.LeftHand ? 0 : 1);
                 }
             }
             else
             {
                 state.grabbed.SetHover(true, true);
                 if (pressed)
-                    state.grabbed.UpdateFromFallback(hand.position);
+                    state.grabbed.UpdateFromFallback(hand.position, hand.rotation, node == XRNode.LeftHand ? 0 : 1);
                 if (releasedThisFrame)
                 {
-                    state.grabbed.EndFromFallback(hand.position);
+                    state.grabbed.EndFromFallback(hand.position, node == XRNode.LeftHand ? 0 : 1);
                     state.grabbed = null;
                 }
             }

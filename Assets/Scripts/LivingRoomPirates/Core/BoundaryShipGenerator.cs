@@ -23,6 +23,11 @@ public class BoundaryShipGenerator : MonoBehaviour
     public Transform shipGeneratedRoot;
     public Transform boundaryDebugRoot;
 
+    [Header("In-Headset Debug Signs")]
+    public bool spawnBoundaryDebugSign = true;
+    public Vector3 boundaryDebugSignLocalOffset = Vector3.zero;
+
+
     [Header("Structural Prefabs")]
     public GameObject deckTilePrefab;
     public GameObject railingStraightPrefab;
@@ -61,6 +66,12 @@ public class BoundaryShipGenerator : MonoBehaviour
     [Tooltip("Metres kept between the generated ship and the real Guardian boundary.")]
     public float safetyMargin = 0.35f;
 
+    [Tooltip("Minimum detected width/depth to count as real roomscale. Smaller values are treated as stationary and retried before fallback.")]
+    public float minimumRoomscaleDimension = 2.0f;
+
+    [Tooltip("Minimum detected area to count as roomscale. Prevents Quest stationary bounds from being accepted as a room-scale ship.")]
+    public float minimumRoomscaleArea = 3.5f;
+
     [Header("Editor / Stationary / No-Headset Fallback")]
     [Tooltip("Fallback width when no real roomscale Guardian boundary is available.")]
     public float editorFallbackWidth = 2.5f;
@@ -82,6 +93,8 @@ public class BoundaryShipGenerator : MonoBehaviour
     public float UsableWidth { get; private set; }
     public float UsableDepth { get; private set; }
     public ShipTier CurrentTier { get; private set; }
+    public string LastBoundarySource { get; private set; } = "None";
+    public int LastBoundaryPointCount { get; private set; } = 0;
 
     private bool usedFallbackBoundary;
     private bool IsTinyRaft => Mathf.Min(UsableWidth, UsableDepth) < tinyRaftThreshold;
@@ -93,9 +106,24 @@ public class BoundaryShipGenerator : MonoBehaviour
             RegenerateShip();
     }
 
+    /// <summary>
+    /// Probes the active Quest/OpenXR boundary without generating the ship.
+    /// Used by the runtime installer so we do not create the stationary dinghy
+    /// before Guardian/Stage boundary data has initialized on headset.
+    /// </summary>
+    public bool TryDetectValidBoundaryNow()
+    {
+        LrpShipLog.Add("TryDetectValidBoundaryNow");
+        usedFallbackBoundary = false;
+        SetTrackingOrigin();
+        QueryBoundary();
+        return !usedFallbackBoundary && IsRoomscaleSize(DetectedWidth, DetectedDepth);
+    }
+
     [ContextMenu("Regenerate Ship")]
     public void RegenerateShip()
     {
+        LrpShipLog.Add("RegenerateShip begin");
         ClearGenerated();
 
         usedFallbackBoundary = false;
@@ -121,9 +149,11 @@ public class BoundaryShipGenerator : MonoBehaviour
         // to exercise every ship tier, from tiny raft through galleon.
         CurrentTier = SelectTier(minDim);
 
+        LrpShipLog.Add($"Boundary final {LastBoundarySource} {DetectedWidth:F2}x{DetectedDepth:F2} pts={LastBoundaryPointCount}");
         Debug.Log($"[BoundaryShipGenerator] Play area detected: {DetectedWidth:F2} m x {DetectedDepth:F2} m");
         Debug.Log($"[BoundaryShipGenerator] Usable area: {UsableWidth:F2} m x {UsableDepth:F2} m  margin={safetyMargin:F2} m");
         Debug.Log($"[BoundaryShipGenerator] Used fallback boundary: {usedFallbackBoundary}");
+        LrpShipLog.Add($"Ship tier {CurrentTier} usable {UsableWidth:F2}x{UsableDepth:F2}");
         Debug.Log($"[BoundaryShipGenerator] Ship tier selected: {CurrentTier}");
 
         if (IsTinyRaft)
@@ -138,10 +168,13 @@ public class BoundaryShipGenerator : MonoBehaviour
             SpawnStations();
         }
 
+        SpawnBoundaryDebugSign();
+
         ShipStormMotionController stormMotionController = GetComponent<ShipStormMotionController>();
         if (stormMotionController != null)
             stormMotionController.RefreshEnvironmentLayout();
 
+        LrpShipLog.Add("Ship generation complete");
         Debug.Log("[BoundaryShipGenerator] Ship generation complete.");
     }
 
@@ -159,32 +192,76 @@ public class BoundaryShipGenerator : MonoBehaviour
 
     private void QueryBoundary()
     {
+        LrpShipLog.Add("QueryBoundary start");
 #if UNITY_ANDROID && !UNITY_EDITOR
-        if (TryGetOculusBoundaryDimensions(out float detectedWidth, out float detectedDepth))
-        {
-            DetectedWidth = detectedWidth;
-            DetectedDepth = detectedDepth;
+        // Quest boundary detection must not rely on only one API.
+        // OVRBoundary.PlayArea can report a small/stationary rectangle, and some
+        // OpenXR/XRITK projects expose boundary points through XRInputSubsystem
+        // instead of Oculus Integration. Query both and keep the largest valid
+        // roomscale rectangle. If both fail or are tiny, then and only then fall
+        // back to the compact stationary dinghy.
+        float bestWidth = 0f;
+        float bestDepth = 0f;
+        string bestSource = "None";
+        LastBoundaryPointCount = 0;
 
-            if (DetectedWidth < 1.0f || DetectedDepth < 1.0f)
-            {
-                Debug.LogWarning("[BoundaryShipGenerator] Guardian boundary is missing, stationary, or too small – using Dinghy fallback.");
-                ApplyFallback();
-            }
-        }
-        else
+        // Desired order: 1) OVR PlayArea/OuterBoundary, 2) XRInputSubsystem, 3) fallback.
+        if (TryGetOculusBoundaryDimensions(out float ovrWidth, out float ovrDepth))
         {
-            Debug.LogWarning("[BoundaryShipGenerator] No valid roomscale Guardian boundary – using Dinghy fallback.");
-            ApplyFallback();
+            if (ovrWidth * ovrDepth > bestWidth * bestDepth)
+            {
+                bestWidth = ovrWidth;
+                bestDepth = ovrDepth;
+                bestSource = LastBoundarySource.StartsWith("OVR") ? LastBoundarySource : "OVRBoundary";
+            }
+            LrpShipLog.Add($"OVR boundary {ovrWidth:F2}x{ovrDepth:F2} pts={LastBoundaryPointCount}");
+            Debug.Log($"[BoundaryShipGenerator] OVR boundary: {ovrWidth:F2} m x {ovrDepth:F2} m, points={LastBoundaryPointCount}");
         }
+
+        if (TryGetXRInputSubsystemBoundaryDimensions(out float xrWidth, out float xrDepth))
+        {
+            if (xrWidth * xrDepth > bestWidth * bestDepth)
+            {
+                bestWidth = xrWidth;
+                bestDepth = xrDepth;
+                bestSource = "XRInputSubsystem";
+            }
+            LrpShipLog.Add($"XR boundary {xrWidth:F2}x{xrDepth:F2} pts={LastBoundaryPointCount}");
+            Debug.Log($"[BoundaryShipGenerator] XRInputSubsystem boundary: {xrWidth:F2} m x {xrDepth:F2} m, points={LastBoundaryPointCount}");
+        }
+
+        if (IsRoomscaleSize(bestWidth, bestDepth))
+        {
+            usedFallbackBoundary = false;
+            DetectedWidth = bestWidth;
+            DetectedDepth = bestDepth;
+            LastBoundarySource = bestSource;
+            return;
+        }
+
+        LrpShipLog.Add($"NO ROOM BOUNDARY best={bestWidth:F2}x{bestDepth:F2}; fallback");
+        Debug.LogWarning($"[BoundaryShipGenerator] No valid roomscale Guardian boundary found. Best={bestWidth:F2}x{bestDepth:F2}; minDim={minimumRoomscaleDimension:F2}, minArea={minimumRoomscaleArea:F2}. Using compact fallback only after retry.");
+        ApplyFallback();
 #else
         ApplyFallback();
+        LrpShipLog.Add($"Editor/no-headset fallback {DetectedWidth:F2}x{DetectedDepth:F2}");
         Debug.Log($"[BoundaryShipGenerator] Editor/no-headset fallback dimensions: {DetectedWidth:F2} m x {DetectedDepth:F2} m");
 #endif
     }
 
+    private bool IsRoomscaleSize(float width, float depth)
+    {
+        float w = Mathf.Abs(width);
+        float d = Mathf.Abs(depth);
+        return w >= minimumRoomscaleDimension && d >= minimumRoomscaleDimension && (w * d) >= minimumRoomscaleArea;
+    }
+
     private void ApplyFallback()
     {
+        LrpShipLog.Add(Application.isEditor ? "ApplyFallback: EditorFallback" : "ApplyFallback: StationaryFallback");
         usedFallbackBoundary = true;
+        LastBoundarySource = Application.isEditor ? "EditorFallback" : "StationaryFallback";
+        LastBoundaryPointCount = 0;
 
 #if UNITY_EDITOR
         if (randomizeEditorFallbackBoundary && Application.isPlaying)
@@ -203,6 +280,38 @@ public class BoundaryShipGenerator : MonoBehaviour
         DetectedDepth = Mathf.Max(0.5f, editorFallbackDepth);
     }
 
+
+    private bool TryGetXRInputSubsystemBoundaryDimensions(out float width, out float depth)
+    {
+        width = 0f;
+        depth = 0f;
+
+        List<UnityEngine.XR.XRInputSubsystem> subsystems = new List<UnityEngine.XR.XRInputSubsystem>();
+        UnityEngine.SubsystemManager.GetInstances(subsystems);
+
+        List<Vector3> points = new List<Vector3>();
+        for (int i = 0; i < subsystems.Count; i++)
+        {
+            UnityEngine.XR.XRInputSubsystem subsystem = subsystems[i];
+            if (subsystem == null || !subsystem.running)
+                continue;
+
+            points.Clear();
+            if (!subsystem.TryGetBoundaryPoints(points) || points.Count < 3)
+                continue;
+
+            LastBoundaryPointCount = Mathf.Max(LastBoundaryPointCount, points.Count);
+            Bounds b = new Bounds(points[0], Vector3.zero);
+            for (int p = 1; p < points.Count; p++)
+                b.Encapsulate(points[p]);
+
+            width = Mathf.Max(width, Mathf.Abs(b.size.x));
+            depth = Mathf.Max(depth, Mathf.Abs(b.size.z));
+        }
+
+        return width >= 0.5f && depth >= 0.5f;
+    }
+
     private bool TrySetOculusTrackingOrigin()
     {
         Type ovrManagerType = FindType("OVRManager");
@@ -218,7 +327,13 @@ public class BoundaryShipGenerator : MonoBehaviour
             return false;
 
         object stage = Enum.Parse(trackingOriginType, "Stage");
-        ovrManagerType.GetProperty("trackingOriginType")?.SetValue(null, stage, null);
+        System.Reflection.PropertyInfo prop = ovrManagerType.GetProperty("trackingOriginType");
+        if (prop != null)
+        {
+            // Oculus Integration has exposed this both statically and through OVRManager.instance across versions.
+            object target = prop.GetGetMethod() != null && prop.GetGetMethod().IsStatic ? null : instance;
+            prop.SetValue(target, stage, null);
+        }
         return true;
     }
 
@@ -236,7 +351,13 @@ public class BoundaryShipGenerator : MonoBehaviour
         if (instance == null)
             return false;
 
-        object boundary = ovrManagerType.GetProperty("boundary")?.GetValue(null, null);
+        System.Reflection.PropertyInfo boundaryProp = ovrManagerType.GetProperty("boundary");
+        object boundary = null;
+        if (boundaryProp != null)
+        {
+            object target = boundaryProp.GetGetMethod() != null && boundaryProp.GetGetMethod().IsStatic ? null : instance;
+            boundary = boundaryProp.GetValue(target, null);
+        }
         if (boundary == null)
             return false;
 
@@ -251,13 +372,50 @@ public class BoundaryShipGenerator : MonoBehaviour
         object playArea = Enum.Parse(boundaryType, "PlayArea");
         object dimensions = ovrBoundaryType.GetMethod("GetDimensions")?.Invoke(boundary, new[] { playArea });
 
-        if (!(dimensions is Vector3 dims))
-            return false;
+        if (dimensions is Vector3 dims)
+        {
+            float w = Mathf.Abs(dims.x);
+            float d = Mathf.Abs(dims.z);
+            if (w * d > width * depth)
+            {
+                width = w;
+                depth = d;
+                LastBoundarySource = "OVR PlayArea Dimensions";
+            }
+        }
 
-        width = Mathf.Abs(dims.x);
-        depth = Mathf.Abs(dims.z);
+        // Prefer actual Guardian geometry when available. PlayArea is often an axis-aligned
+        // rectangle; OuterBoundary is closer to the user-drawn boundary. We keep whichever
+        // produces the largest valid footprint. This matters on Quest because roomscale
+        // data may appear later than app startup and may vary between Oculus/OVR and OpenXR.
+        TryApplyOvrGeometry(ovrBoundaryType, boundaryType, boundary, "PlayArea", ref width, ref depth);
+        TryApplyOvrGeometry(ovrBoundaryType, boundaryType, boundary, "OuterBoundary", ref width, ref depth);
 
         return width >= 0.5f && depth >= 0.5f;
+    }
+
+    private void TryApplyOvrGeometry(Type ovrBoundaryType, Type boundaryType, object boundary, string boundaryName, ref float width, ref float depth)
+    {
+        try
+        {
+            object boundaryKind = Enum.Parse(boundaryType, boundaryName);
+            object geometry = ovrBoundaryType.GetMethod("GetGeometry")?.Invoke(boundary, new[] { boundaryKind });
+            if (geometry is Vector3[] pts && pts.Length >= 3)
+            {
+                LastBoundaryPointCount = Mathf.Max(LastBoundaryPointCount, pts.Length);
+                Bounds b = new Bounds(pts[0], Vector3.zero);
+                for (int i = 1; i < pts.Length; i++) b.Encapsulate(pts[i]);
+                float w = Mathf.Abs(b.size.x);
+                float d = Mathf.Abs(b.size.z);
+                if (w * d > width * depth)
+                {
+                    width = w;
+                    depth = d;
+                    LastBoundarySource = "OVR " + boundaryName + " Geometry";
+                }
+            }
+        }
+        catch { }
     }
 
     private static Type FindType(string typeName)
@@ -454,6 +612,40 @@ public class BoundaryShipGenerator : MonoBehaviour
         CreatePlaceholderPart($"{partName}_Cap", PrimitiveType.Sphere, position + Vector3.up * 1.02f, Quaternion.identity, new Vector3(0.12f, 0.12f, 0.12f), new Color(0.73f, 0.62f, 0.36f));
     }
 
+    private void SpawnBoundaryDebugSign()
+    {
+        if (!spawnBoundaryDebugSign) return;
+
+        Transform parent = boundaryDebugRoot != null ? boundaryDebugRoot : (shipGeneratedRoot != null ? shipGeneratedRoot : transform);
+        float sideX = Mathf.Max(0.55f, RailHalfWidth() - 0.10f);
+        float z = Mathf.Clamp(-UsableDepth * 0.10f, -0.65f, 0.15f);
+        Vector3 localPos = new Vector3(sideX, 1.25f, z) + boundaryDebugSignLocalOffset;
+
+        LrpShipLog.Add("Spawn boundary debug sign");
+        LrpWoodenSign sign = LrpWoodenSign.Create(
+            parent,
+            "BoundaryDebugWoodenSign",
+            localPos,
+            Quaternion.Euler(0f, -90f, 0f),
+            "BOUNDARY DEBUG | GAME LOG",
+            "DEBUG LOG PANEL ACTIVE\nWaiting for BoundaryShipGenerator data...");
+
+        // v73: configure the actual spawned sign here, not a parallel/unused board.
+        // Keep debug text world-depth tested and front-only; only the small instruction signs
+        // use their separate text offset settings.
+        sign.boardWidth = 3.25f;
+        sign.boardHeight = 1.18f;
+        sign.textCharacterSize = 0.018f;
+        sign.fontSize = 32;
+        sign.textVisibleThroughWalls = false;
+        sign.doubleSidedText = false;
+        sign.BuildIfNeeded();
+
+        LrpBoundaryDebugSign debug = sign.gameObject.GetComponent<LrpBoundaryDebugSign>();
+        if (debug == null) debug = sign.gameObject.AddComponent<LrpBoundaryDebugSign>();
+        debug.generator = this;
+    }
+
     private void SpawnStations()
     {
         switch (CurrentTier)
@@ -534,13 +726,13 @@ public class BoundaryShipGenerator : MonoBehaviour
         float hw = UsableWidth * 0.5f;
         float hd = UsableDepth * 0.5f;
 
-        SpawnStation(steeringWheelPrefab, new Vector3(0f, 0f, -hd * 0.5f), 0f, "SteeringWheel");
+        SpawnStation(steeringWheelPrefab, new Vector3(0f, 0f, hd * 0.22f), 0f, "SteeringWheel");
         SpawnStation(cannonForwardPrefab, new Vector3(0f, 0f, hd * 0.5f), 0f, "CannonForward");
         SpawnStation(cannonSidePrefab, new Vector3(-hw * 0.5f, 0f, 0f), 90f, "CannonPortMid");
         SpawnStation(cannonSidePrefab, new Vector3(hw * 0.5f, 0f, 0f), -90f, "CannonStarMid");
-        SpawnStation(anchorLeverPrefab, new Vector3(0f, 0f, hd * 0.35f), 0f, "AnchorLever");
-        SpawnStation(sailRopePrefab, new Vector3(0f, 0f, 0f), 0f, "SailRope");
-        SpawnStation(mastSmallPrefab, new Vector3(0f, 0f, 0f), 0f, "MastSmall");
+        SpawnStation(anchorLeverPrefab, new Vector3(0f, 0f, -hd * 0.45f), 0f, "AnchorLever");
+        SpawnStation(sailRopePrefab, new Vector3(-hw * 0.25f, 0f, hd * 0.35f), 0f, "SailRope");
+        SpawnStation(mastSmallPrefab, new Vector3(0f, 0f, hd * 0.48f), 0f, "MastSmall");
     }
 
     private void SpawnBrig()
@@ -550,7 +742,7 @@ public class BoundaryShipGenerator : MonoBehaviour
         float hw = UsableWidth * 0.5f;
         float hd = UsableDepth * 0.5f;
 
-        SpawnStation(steeringWheelPrefab, new Vector3(0f, 0f, -hd * 0.55f), 0f, "SteeringWheel");
+        SpawnStation(steeringWheelPrefab, new Vector3(0f, 0f, hd * 0.18f), 0f, "SteeringWheel");
         SpawnStation(cannonForwardPrefab, new Vector3(0f, 0f, hd * 0.6f), 0f, "CannonForward");
 
         SpawnStation(cannonSidePrefab, new Vector3(-hw * 0.5f, 0f, hd * 0.25f), 90f, "CannonPortFwd");
@@ -558,9 +750,9 @@ public class BoundaryShipGenerator : MonoBehaviour
         SpawnStation(cannonSidePrefab, new Vector3(hw * 0.5f, 0f, hd * 0.25f), -90f, "CannonStarFwd");
         SpawnStation(cannonSidePrefab, new Vector3(hw * 0.5f, 0f, -hd * 0.25f), -90f, "CannonStarAft");
 
-        SpawnStation(anchorLeverPrefab, new Vector3(0f, 0f, hd * 0.4f), 0f, "AnchorLever");
-        SpawnStation(sailRopePrefab, new Vector3(0f, 0f, 0f), 0f, "SailRope");
-        SpawnStation(mastSmallPrefab, new Vector3(0f, 0f, 0f), 0f, "MastSmall");
+        SpawnStation(anchorLeverPrefab, new Vector3(0f, 0f, -hd * 0.50f), 0f, "AnchorLever");
+        SpawnStation(sailRopePrefab, new Vector3(-hw * 0.25f, 0f, hd * 0.35f), 0f, "SailRope");
+        SpawnStation(mastSmallPrefab, new Vector3(0f, 0f, hd * 0.48f), 0f, "MastSmall");
         SpawnStation(ammoCratePrefab, new Vector3(-hw * 0.3f, 0f, 0f), 0f, "AmmoCratePort");
         SpawnStation(ammoCratePrefab, new Vector3(hw * 0.3f, 0f, 0f), 0f, "AmmoCrateStar");
         SpawnStation(repairBucketPrefab, new Vector3(-hw * 0.3f, 0f, -hd * 0.3f), 0f, "RepairBucketPort");
@@ -574,7 +766,7 @@ public class BoundaryShipGenerator : MonoBehaviour
         float hw = UsableWidth * 0.5f;
         float hd = UsableDepth * 0.5f;
 
-        SpawnStation(steeringWheelPrefab, new Vector3(0f, 0f, -hd * 0.6f), 0f, "SteeringWheel");
+        SpawnStation(steeringWheelPrefab, new Vector3(0f, 0f, hd * 0.15f), 0f, "SteeringWheel");
         SpawnStation(cannonForwardPrefab, new Vector3(0f, 0f, hd * 0.65f), 0f, "CannonForward");
 
         SpawnStation(cannonSidePrefab, new Vector3(-hw * 0.55f, 0f, hd * 0.35f), 90f, "CannonPortFwd");
@@ -584,10 +776,10 @@ public class BoundaryShipGenerator : MonoBehaviour
         SpawnStation(cannonSidePrefab, new Vector3(hw * 0.55f, 0f, 0f), -90f, "CannonStarMid");
         SpawnStation(cannonSidePrefab, new Vector3(hw * 0.55f, 0f, -hd * 0.35f), -90f, "CannonStarAft");
 
-        SpawnStation(anchorLeverPrefab, new Vector3(0f, 0f, hd * 0.5f), 0f, "AnchorLever");
-        SpawnStation(sailRopePrefab, new Vector3(-hw * 0.2f, 0f, 0f), 0f, "SailRopePort");
-        SpawnStation(sailRopePrefab, new Vector3(hw * 0.2f, 0f, 0f), 0f, "SailRopeStar");
-        SpawnStation(mastSmallPrefab, new Vector3(0f, 0f, 0f), 0f, "MastSmall");
+        SpawnStation(anchorLeverPrefab, new Vector3(0f, 0f, -hd * 0.52f), 0f, "AnchorLever");
+        SpawnStation(sailRopePrefab, new Vector3(-hw * 0.22f, 0f, hd * 0.35f), 0f, "SailRopePort");
+        SpawnStation(sailRopePrefab, new Vector3(hw * 0.22f, 0f, hd * 0.35f), 0f, "SailRopeStar");
+        SpawnStation(mastSmallPrefab, new Vector3(0f, 0f, hd * 0.50f), 0f, "MastSmall");
         // Spyglass removed until it has real gameplay.
         SpawnStation(ammoCratePrefab, new Vector3(-hw * 0.35f, 0f, 0f), 0f, "AmmoCratePort");
         SpawnStation(ammoCratePrefab, new Vector3(hw * 0.35f, 0f, 0f), 0f, "AmmoCrateStar");
@@ -705,9 +897,7 @@ public class BoundaryShipGenerator : MonoBehaviour
         obj.transform.localRotation = localRot;
         obj.transform.localScale = localScale;
 
-        Renderer renderer = obj.GetComponent<Renderer>();
-        if (renderer != null)
-            renderer.material.color = color;
+        LrpPrimitiveMaterialLibrary.Apply(obj, color);
 
         Collider collider = obj.GetComponent<Collider>();
         if (collider != null)
@@ -724,8 +914,8 @@ public class BoundaryShipGenerator : MonoBehaviour
         float hullDepth = Mathf.Max(0.9f, deckDepth + 0.28f);
 
         CreatePlaceholderPart("HullShadow", PrimitiveType.Cube, new Vector3(0f, -0.08f, 0f), Quaternion.identity, new Vector3(hullWidth * 0.92f, 0.04f, hullDepth * 0.92f), new Color(0.12f, 0.09f, 0.06f));
-        CreatePlaceholderPart("HullBase", PrimitiveType.Cube, new Vector3(0f, -0.03f, 0f), Quaternion.identity, new Vector3(hullWidth * 0.8f, 0.22f, hullDepth * 0.86f), new Color(0.24f, 0.16f, 0.1f));
-        CreatePlaceholderPart("DeckSurface", PrimitiveType.Cube, new Vector3(0f, 0.03f, 0f), Quaternion.identity, new Vector3(deckWidth, 0.06f, deckDepth), new Color(0.56f, 0.43f, 0.24f));
+        CreatePlaceholderPart("HullBase", PrimitiveType.Cube, new Vector3(0f, -0.14f, 0f), Quaternion.identity, new Vector3(hullWidth * 0.8f, 0.22f, hullDepth * 0.86f), new Color(0.24f, 0.16f, 0.1f));
+        CreatePlaceholderPart("DeckSurface_FLOOR_TOP_AT_WORLD_ZERO_VISIBLE", PrimitiveType.Cube, new Vector3(0f, -0.025f, 0f), Quaternion.identity, new Vector3(deckWidth, 0.07f, deckDepth), new Color(0.64f, 0.46f, 0.24f));
 
         float plankWidth = Mathf.Clamp(deckWidth / 5f, 0.18f, 0.5f);
         int plankCount = Mathf.Max(3, Mathf.RoundToInt(deckWidth / plankWidth));
@@ -737,7 +927,7 @@ public class BoundaryShipGenerator : MonoBehaviour
             CreatePlaceholderPart(
                 $"DeckPlank_{i}",
                 PrimitiveType.Cube,
-                new Vector3(x, 0.065f, 0f),
+                new Vector3(x, 0.005f, 0f),
                 Quaternion.identity,
                 new Vector3(plankWidth - 0.02f, 0.01f, deckDepth * 0.98f),
                 i % 2 == 0 ? new Color(0.62f, 0.49f, 0.28f) : new Color(0.52f, 0.38f, 0.2f));
@@ -746,14 +936,15 @@ public class BoundaryShipGenerator : MonoBehaviour
         float bowZ = deckDepth * 0.5f + 0.12f;
         float sternZ = -deckDepth * 0.5f - 0.12f;
 
-        CreatePlaceholderPart("BowCap", PrimitiveType.Cylinder, new Vector3(0f, 0.07f, bowZ), Quaternion.Euler(90f, 0f, 0f), new Vector3(hullWidth * 0.22f, 0.12f, 0.12f), new Color(0.34f, 0.22f, 0.13f));
-        CreatePlaceholderPart("SternCap", PrimitiveType.Cube, new Vector3(0f, 0.1f, sternZ), Quaternion.identity, new Vector3(hullWidth * 0.45f, 0.18f, 0.14f), new Color(0.31f, 0.21f, 0.12f));
+        CreatePlaceholderPart("BowCap", PrimitiveType.Cylinder, new Vector3(0f, 0.01f, bowZ), Quaternion.Euler(90f, 0f, 0f), new Vector3(hullWidth * 0.22f, 0.12f, 0.12f), new Color(0.34f, 0.22f, 0.13f));
+        CreatePlaceholderPart("SternCap", PrimitiveType.Cube, new Vector3(0f, 0.04f, sternZ), Quaternion.identity, new Vector3(hullWidth * 0.45f, 0.18f, 0.14f), new Color(0.31f, 0.21f, 0.12f));
     }
 
     private GameObject SpawnPlaceholderCannon(Vector3 localPos, Quaternion rotation, string label)
     {
         GameObject carriage = CreatePlaceholderPart(label, PrimitiveType.Cube, localPos + Vector3.up * 0.12f, rotation, new Vector3(0.32f, 0.14f, 0.32f), new Color(0.38f, 0.24f, 0.12f));
-        CreatePlaceholderPart($"{label}_Barrel", PrimitiveType.Cylinder, localPos + rotation * new Vector3(0f, 0.28f, 0.18f), rotation * Quaternion.Euler(90f, 0f, 0f), new Vector3(0.12f, 0.36f, 0.12f), new Color(0.15f, 0.15f, 0.18f));
+        GameObject barrel = CreatePlaceholderPart($"{label}_Barrel", PrimitiveType.Cylinder, localPos + rotation * new Vector3(0f, 0.28f, 0.18f), rotation * Quaternion.Euler(90f, 0f, 0f), new Vector3(0.12f, 0.36f, 0.12f), new Color(0.15f, 0.15f, 0.18f));
+        LrpPrimitiveMaterialLibrary.ApplyDarkMetal(barrel);
         return carriage;
     }
 

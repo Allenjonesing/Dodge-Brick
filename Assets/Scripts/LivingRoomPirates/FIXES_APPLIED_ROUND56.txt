@@ -1,0 +1,7 @@
+Round 56 boundary hardening:
+- Primitive installer no longer regenerates the ship immediately during AfterSceneLoad on headset.
+- Added LrpBoundaryDelayedShipStartup to wait/retry Guardian detection before fallback dinghy.
+- BoundaryShipGenerator exposes LastBoundarySource/point count and TryDetectValidBoundaryNow.
+- OVR boundary reflection handles static vs instance properties and tries PlayArea + OuterBoundary geometry.
+- XRInputSubsystem and OVR candidates are selected by footprint area instead of maxing width/depth independently.
+- Logs explicit source/points/size/tier so Quest roomscale failures are diagnosable.

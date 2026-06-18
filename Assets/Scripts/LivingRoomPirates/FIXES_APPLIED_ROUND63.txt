@@ -1,0 +1,17 @@
+Living Room Pirates Round 63
+
+Hammer / leak repair pass:
+- Rebuilt the repair hammer from small primitive parts instead of one giant board.
+  - Wooden handle root.
+  - Untinted Metal 1 hammer head when available, with safe fallback.
+- Hammer now snaps to the hand immediately on grab.
+- Hammer follows hand/controller rotation only while held.
+  - Removed velocity-based LookRotation that caused spinning/spasms.
+- Direct VR hand fallback now passes hand rotation through the bridge/button/sandbox stack.
+- Hammer repairs leaks only on repeated ENTER events into the leak hit radius.
+  - Holding the hammer inside a leak no longer repeatedly repairs it.
+  - Touching/selecting the leak directly does not repair it.
+  - Hammer must leave and re-enter the leak hitbox for each hit.
+- Leaks require 4 hammer hits.
+- Leak visuals shrink each hit and disappear only when fully repaired.
+- Dropped hammer restores physics, gravity, and non-kinematic rigidbody behavior.

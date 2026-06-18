@@ -1,0 +1,34 @@
+Living Room Pirates v50 movement baseline - do not regress
+
+Why v50 mattered:
+- The physical ship/player must never move, rotate, bob, or drift in VR.
+- The player remains at the room/Guardian origin for comfort.
+- The game simulates travel by moving through virtual ocean coordinates.
+
+Authoritative model:
+- WaterOneGrid3x3.virtualShipOceanPosition is the virtual ship location in ocean space.
+- Steering changes the virtual heading/travel direction.
+- Sail percent and anchor state control travel speed.
+- Rendered position for ocean-space objects is: oceanCoordinate - virtualShipOceanPosition, rotated by the ocean frame.
+
+Debris rule:
+- Debris owns a fixed ocean coordinate.
+- Debris is never parented to the ship layout.
+- Debris snaps vertically to the Water1 surface, but its X/Z are resolved from ocean coordinates.
+- If debris looks glued to the ship, this rule has been broken.
+
+Wake rule:
+- Wake ripples are temporary ocean-space debris marks.
+- They spawn near the ship edge/stern at the current ocean coordinate.
+- They should stop spawning when anchor is down or speed is zero.
+- They should fade/despawn, not be a fake UI trail attached to the ship.
+
+Tile/wave rule:
+- Water1 tiles are visual pages of the same ocean.
+- Tiles recycle/render around virtualShipOceanPosition.
+- Wave coordinate offset must advance with virtualShipOceanPosition so crests/troughs treadmill under the ship.
+- Do not add a second independent wave scrolling direction.
+
+Stationary dinghy rule:
+- For a stationary/no-roomscale boundary, all hand controls must be reachable from the center.
+- Mast/sail may extend above/outside boundary, cannon barrels may point outside, but wheel knobs, sail rope/cleat, anchor capstan, cannon breech/fuse, ammo pile, hammer, and leaks must remain reachable inside the rails.

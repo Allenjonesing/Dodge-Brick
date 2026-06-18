@@ -1,0 +1,13 @@
+Round 53
+- Kept v50 ocean/debris/wake model as baseline.
+- Re-zeroed primitive placeholder deck so the walk/contact deck top is on the XR floor plane (Y=0) instead of above the player's real floor.
+- Reversed steering sign again: counterclockwise wheel input rotates the ocean clockwise, making the locked ship appear to turn counterclockwise.
+- Replaced station status lantern spheres with simple cube resource/status indicators.
+- Reworked ammo pile visuals from sphere pile to cheap cube pile while keeping a throwable cannonball object when grabbed.
+- Scaled held cannonballs down slightly.
+- Added throw velocity transfer to dropped cannonballs.
+- Added physical hammer pickup/drop behavior with velocity transfer.
+- Added hammer respawn if lost below the ship/ocean.
+- Leaks now require the hammer nearby/held to repair instead of repairing just by grabbing the leak.
+- Enlarged wooden sign boards/text for VR readability.
+- Added visible rigging tie boards so ropes attach to mast/ship structure instead of floating.

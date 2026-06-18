@@ -360,11 +360,7 @@ namespace LivingRoomPirates.Demo
 
         private static void SetColor(GameObject go, Color color)
         {
-            Renderer r = go.GetComponent<Renderer>();
-            if (r == null) return;
-            Material mat = new Material(Shader.Find("Standard"));
-            mat.color = color;
-            r.material = mat;
+            LrpPrimitiveMaterialLibrary.Apply(go, color);
         }
 
         private void OnGUI()

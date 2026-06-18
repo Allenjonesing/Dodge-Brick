@@ -1,0 +1,6 @@
+Round 73 fixes:
+- Targets the actual BoundaryDebugWoodenSign spawned by BoundaryShipGenerator.
+- Makes the debug board wider/taller directly at spawn time instead of relying on a second path.
+- Adds DEBUG LOG PANEL ACTIVE as a guaranteed visible test line.
+- Adds explicit LrpShipLog entries for boundary query, fallback, final boundary, ship tier, and generation complete.
+- LrpBoundaryDebugSign now formats the board as boundary status + game log using the same live sign object.

@@ -96,22 +96,47 @@ namespace LivingRoomPirates.Demo
 
         public void BeginFromFallback(Vector3 handWorld)
         {
+            BeginFromFallback(handWorld, 0);
+        }
+
+        public void BeginFromFallback(Vector3 handWorld, int handId)
+        {
+            BeginFromFallback(handWorld, transform.rotation, handId);
+        }
+
+        public void BeginFromFallback(Vector3 handWorld, Quaternion handRotation, int handId)
+        {
             _grabbedByFallback = true;
             _nextContinuousTime = 0f;
             SetHover(true, true);
-            if (button != null) button.BeginPhysicalGrab(handWorld);
+            if (button != null) button.BeginPhysicalGrab(handWorld, handRotation, handId);
         }
 
         public void UpdateFromFallback(Vector3 handWorld)
         {
-            if (!_grabbedByFallback) BeginFromFallback(handWorld);
+            UpdateFromFallback(handWorld, 0);
+        }
+
+        public void UpdateFromFallback(Vector3 handWorld, int handId)
+        {
+            UpdateFromFallback(handWorld, transform.rotation, handId);
+        }
+
+        public void UpdateFromFallback(Vector3 handWorld, Quaternion handRotation, int handId)
+        {
+            if (!_grabbedByFallback) BeginFromFallback(handWorld, handRotation, handId);
             SetHover(true, true);
-            if (button != null) button.UpdatePhysicalGrab(handWorld);
+            if (button != null) button.UpdatePhysicalGrab(handWorld, handRotation, handId);
         }
 
         public void EndFromFallback(Vector3 handWorld)
         {
-            if (button != null) button.EndPhysicalGrab(handWorld);
+            EndFromFallback(handWorld, 0);
+        }
+
+        public void EndFromFallback(Vector3 handWorld, int handId)
+        {
+            if (button != null) button.EndPhysicalGrab(handWorld, handId);
             _grabbedByFallback = false;
             SetHover(false, false);
         }

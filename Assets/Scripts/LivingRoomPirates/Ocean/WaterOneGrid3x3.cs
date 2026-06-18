@@ -5,6 +5,15 @@ using UnityEngine;
 /// Water1 itself remains the authoritative vertical snap root. The generated
 /// Water1_Tile_* children are placed under one shared TileGridRoot so yaw/heading,
 /// wave coordinates, movement, and recycling all share one transform space.
+///
+/// V50 BASELINE - DO NOT REGRESS:
+/// The physical ship/player must stay locked at the room origin for VR comfort.
+/// Movement is represented by virtualShipOceanPosition advancing through ocean
+/// coordinates. Tiles, debris, wake ripples, and wave-coordinate offsets render
+/// relative to that virtual ship position. This is why debris can stay at a true
+/// ocean coordinate while the player sees it move past the stationary ship.
+/// Future changes should feed this one model instead of adding separate per-tile,
+/// per-debris, or fake-trail movement systems.
 /// </summary>
 [DisallowMultipleComponent]
 public class WaterOneGrid3x3 : MonoBehaviour

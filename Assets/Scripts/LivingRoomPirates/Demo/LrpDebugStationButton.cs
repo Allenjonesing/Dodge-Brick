@@ -30,7 +30,9 @@ namespace LivingRoomPirates.Demo
             CannonLoadZone,
             CannonFuse,
             RepairHammer,
-            RepairLeak
+            RepairLeak,
+            PortSheet,
+            StarboardSheet
         }
 
         public Action action;
@@ -48,20 +50,45 @@ namespace LivingRoomPirates.Demo
 
         public void BeginPhysicalGrab(Vector3 handWorld)
         {
+            BeginPhysicalGrab(handWorld, 0);
+        }
+
+        public void BeginPhysicalGrab(Vector3 handWorld, int handId)
+        {
+            BeginPhysicalGrab(handWorld, transform.rotation, handId);
+        }
+
+        public void BeginPhysicalGrab(Vector3 handWorld, Quaternion handRotation, int handId)
+        {
             if (sandbox == null) sandbox = FindObjectOfType<LivingRoomPiratesSurfaceDebugSandbox>();
-            if (sandbox != null) sandbox.BeginPhysicalInteraction(action, transform, handWorld);
+            if (sandbox != null) sandbox.BeginPhysicalInteraction(action, transform, handWorld, handRotation, handId);
         }
 
         public void UpdatePhysicalGrab(Vector3 handWorld)
         {
+            UpdatePhysicalGrab(handWorld, 0);
+        }
+
+        public void UpdatePhysicalGrab(Vector3 handWorld, int handId)
+        {
+            UpdatePhysicalGrab(handWorld, transform.rotation, handId);
+        }
+
+        public void UpdatePhysicalGrab(Vector3 handWorld, Quaternion handRotation, int handId)
+        {
             if (sandbox == null) sandbox = FindObjectOfType<LivingRoomPiratesSurfaceDebugSandbox>();
-            if (sandbox != null) sandbox.UpdatePhysicalInteraction(action, transform, handWorld);
+            if (sandbox != null) sandbox.UpdatePhysicalInteraction(action, transform, handWorld, handRotation, handId);
         }
 
         public void EndPhysicalGrab(Vector3 handWorld)
         {
+            EndPhysicalGrab(handWorld, 0);
+        }
+
+        public void EndPhysicalGrab(Vector3 handWorld, int handId)
+        {
             if (sandbox == null) sandbox = FindObjectOfType<LivingRoomPiratesSurfaceDebugSandbox>();
-            if (sandbox != null) sandbox.EndPhysicalInteraction(action, transform, handWorld);
+            if (sandbox != null) sandbox.EndPhysicalInteraction(action, transform, handWorld, handId);
         }
 
         public void InvokeAction()

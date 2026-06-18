@@ -1,0 +1,14 @@
+Round 62 - Primitive material texture pass
+
+- Added LrpPrimitiveMaterialLibrary runtime/editor material resolver.
+- Generated primitives now prefer materials named:
+  - Wood 2 / Wood 3 for ship wood, rails, deck, mast, wheel, capstan, signs, handles.
+  - Metal 1 for cannons, cannonballs, chains, metal hardware.
+  - Aluminum Metal for Water1 / Water2 with blue tint.
+- Metal 1 is cloned and dark-tinted for cannons/cannon hardware.
+- Cannonballs use Metal 1 with a slightly brighter dark tint so they remain visible.
+- Water1 and Water2 are given a blue-tinted Aluminum Metal material if available.
+- All changes fail safely to cheap Standard fallback materials if the texture-pack materials are not present or not included in the build.
+
+Important Unity note:
+Runtime builds can only load texture-pack materials if they are already referenced by the scene/build or are under a Resources folder. In the Editor, AssetDatabase can find them by name in the project. If Quest builds do not show the real textures, place Wood 2, Wood 3, Metal 1, and Aluminum Metal under a Resources folder or assign/reference them in a scene object.

@@ -1,0 +1,1 @@
+Round 70: Reverted to round66 baseline. Only changed the small instruction sign TextMesh local Z offset from -0.021 to -0.52 in LivingRoomPiratesSurfaceDebugSandbox.SmallWoodSign. Debug boundary sign, materials, shaders, cannons, ropes, and all other systems are untouched from v66.

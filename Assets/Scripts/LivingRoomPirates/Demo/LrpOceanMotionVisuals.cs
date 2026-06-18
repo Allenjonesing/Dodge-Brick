@@ -11,6 +11,13 @@ namespace LivingRoomPirates.Demo
     [DefaultExecutionOrder(250)]
     public sealed class LrpOceanMotionVisuals : MonoBehaviour
     {
+        // V50 BASELINE NOTE:
+        // Wake ripples are temporary ocean-space marks. They must be spawned at
+        // an ocean coordinate and then converted back to render/world position
+        // each frame using the WaterOneGrid3x3 virtual ship position. They are
+        // not UI/trail sprites attached to the ship; otherwise they lie about
+        // speed, anchor-stop state, and heading.
+
         public Transform shipRoot;
         public Transform waterOne;
         public OceanWorldController ocean;
@@ -253,6 +260,14 @@ namespace LivingRoomPirates.Demo
 
         private Vector3 ResolveWaveDirection()
         {
+            LivingRoomPirates.Demo.LrpWindController wind = FindObjectOfType<LivingRoomPirates.Demo.LrpWindController>();
+            if (wind != null)
+            {
+                Vector3 windDir = wind.WindDirectionWorld;
+                windDir.y = 0f;
+                if (windDir.sqrMagnitude > 0.001f) return windDir.normalized;
+            }
+
             WaterOneGrid3x3 grid = waterOne != null ? waterOne.GetComponent<WaterOneGrid3x3>() : null;
             Transform root = grid != null ? grid.TileGridRoot : null;
             Vector3 dir = root != null ? root.TransformDirection(Vector3.left) : Vector3.left;

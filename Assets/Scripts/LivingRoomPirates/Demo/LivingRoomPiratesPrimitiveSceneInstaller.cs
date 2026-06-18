@@ -118,12 +118,12 @@ namespace LivingRoomPirates.Demo
 #else
             // On Quest stationary/no-roomscale Guardian, generate the small supportable raft/dinghy
             // instead of randomly creating an oversized ship that cannot fit.
-            generator.editorFallbackWidth = 0.8f;
-            generator.editorFallbackDepth = 0.8f;
+            generator.editorFallbackWidth = 1.60f;
+            generator.editorFallbackDepth = 1.80f;
             generator.randomizeEditorFallbackBoundary = false;
 #endif
             generator.regenerateOnStart = false;
-            generator.stationPrefabScaleMultiplier = 2.0f;
+            generator.stationPrefabScaleMultiplier = 2.5f;
             generator.forceEnableSpawnedStations = true;
             // Leave prefab references null. BoundaryShipGenerator now builds good primitive
             // placeholders itself when no real prefabs are assigned.
@@ -215,12 +215,17 @@ namespace LivingRoomPirates.Demo
             motionVisuals.windLineCount = 18;
             motionVisuals.enabled = true;
 
-            // In Play mode Start() will also regenerate. In edit-time context menu this gives instant visuals.
+            // Quest boundary/Guardian data frequently is not ready during AfterSceneLoad.
+            // Do NOT generate the dinghy immediately here on headset; wait/retry first.
             if (Application.isPlaying)
             {
-                generator.RegenerateShip();
-                AddPrimitiveBehavioursToGeneratedStations(shipRoot);
-                CreateOrUpdateShipBottomContact(shipRoot, ocean);
+                LrpBoundaryDelayedShipStartup delayed = Ensure<LrpBoundaryDelayedShipStartup>(root);
+                delayed.generator = generator;
+                delayed.shipRoot = shipRoot;
+                delayed.ocean = ocean;
+                delayed.timeoutSeconds = 10.0f;
+                delayed.retryIntervalSeconds = 0.5f;
+                delayed.enabled = true;
             }
 
             ShipOceanSnapTargetMaintainer snapMaintainer = root.GetComponent<ShipOceanSnapTargetMaintainer>();
@@ -297,10 +302,8 @@ namespace LivingRoomPirates.Demo
             EnsureMeshPlane(waterTwo, 50000f, 50000f, waterOneColor);
             Renderer water1Renderer = GameObject.Find(WaterOneName) != null ? GameObject.Find(WaterOneName).GetComponent<Renderer>() : null;
             Renderer water2Renderer = waterTwo.GetComponent<Renderer>();
-            if (water1Renderer != null && water2Renderer != null && water1Renderer.sharedMaterial != null)
-            {
-                water2Renderer.sharedMaterial = water1Renderer.sharedMaterial;
-            }
+            if (water1Renderer != null) LrpPrimitiveMaterialLibrary.ApplyWater(water1Renderer.gameObject);
+            if (water2Renderer != null) LrpPrimitiveMaterialLibrary.ApplyWater(water2Renderer.gameObject);
             waterTwo.transform.position = new Vector3(0f, -50f, 0f);
             waterTwo.transform.rotation = Quaternion.identity;
         }
@@ -329,7 +332,14 @@ namespace LivingRoomPirates.Demo
                 mr.sharedMaterial = mat;
             }
 
-            mat.color = color;
+            if (go.name == WaterOneName || go.name == WaterTwoName || go.name.ToLowerInvariant().Contains("water"))
+            {
+                LrpPrimitiveMaterialLibrary.ApplyWater(go);
+            }
+            else
+            {
+                mat.color = color;
+            }
         }
 
         private static Mesh BuildGridMesh(float width, float depth, int xSegments, int zSegments)
@@ -380,7 +390,7 @@ namespace LivingRoomPirates.Demo
             return mesh;
         }
 
-        private static void CreateOrUpdateShipBottomContact(Transform shipRoot, OceanWorldController ocean)
+        public static void CreateOrUpdateShipBottomContact(Transform shipRoot, OceanWorldController ocean)
         {
             if (shipRoot == null || ocean == null)
             {
@@ -483,7 +493,7 @@ namespace LivingRoomPirates.Demo
             }
         }
 
-        private static void AddPrimitiveBehavioursToGeneratedStations(Transform shipRoot)
+        public static void AddPrimitiveBehavioursToGeneratedStations(Transform shipRoot)
         {
             if (shipRoot == null) return;
 

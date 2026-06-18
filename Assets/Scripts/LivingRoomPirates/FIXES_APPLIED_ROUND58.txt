@@ -1,0 +1,16 @@
+Round 58 - In-headset wooden debug signs
+
+- Added reusable primitive wooden sign system: LrpWoodenSign.
+  - Runtime-created board using cube + TextMesh.
+  - Text duplicated front/back so signs can be read from either side.
+  - Text uses overlay-style material when available so it remains readable through ship geometry/walls during debugging.
+  - Text size, board size, and wall-visibility are tunable from script/inspector.
+
+- Added LrpBoundaryDebugSign.
+  - Live-updates a wooden sign with BoundaryShipGenerator state.
+  - Shows runtime, boundary source, point count, detected width/depth/area, usable width/depth/area, and selected ship tier.
+
+- Updated BoundaryShipGenerator.
+  - Spawns a BoundaryDebugWoodenSign on the side of the generated ship after deck/rail/station generation.
+  - Sign uses the same values the generator used to select Dinghy/Rowboat/Sloop/Brig/Galleon.
+  - Sign is generated on headset builds and editor fallback builds.
