@@ -20,10 +20,13 @@ public class PlayerGuidanceOverlay : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Initialize()
     {
-        SceneManager.sceneLoaded -= OnSceneLoaded;
-        SceneManager.sceneLoaded += OnSceneLoaded;
-
-        EnsureOverlayForScene(SceneManager.GetActiveScene());
+        // Disabled for Living Room Pirates prototype cleanup.
+        // Player-facing help should be on physical ship signs, not a giant world overlay.
+        PlayerGuidanceOverlay[] overlays = Resources.FindObjectsOfTypeAll<PlayerGuidanceOverlay>();
+        foreach (PlayerGuidanceOverlay overlay in overlays)
+        {
+            if (overlay != null) Destroy(overlay.gameObject);
+        }
     }
 
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -33,10 +36,7 @@ public class PlayerGuidanceOverlay : MonoBehaviour
 
     public static void SetStatus(string message)
     {
-        if (instance == null)
-            return;
-
-        instance.SetStatusInternal(message);
+        // Overlay disabled.
     }
 
     public static void ClearStatus()
@@ -49,6 +49,8 @@ public class PlayerGuidanceOverlay : MonoBehaviour
 
     private static void EnsureOverlayForScene(Scene scene)
     {
+        return;
+
         if (!scene.IsValid() || !scene.isLoaded)
             return;
 

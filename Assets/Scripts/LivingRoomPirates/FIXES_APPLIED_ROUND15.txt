@@ -1,0 +1,7 @@
+Round 15 fixes:
+- OceanWorldController now samples the actually rendered Water1_Tile_* mesh vertices first.
+- Ship/ocean snap now solves by measured gap against visible rendered Water1 surface.
+- SurfaceFloatFollower and cannonball impacts use same visible rendered Water1 surface through OceanWorldController.SampleHeight.
+- Execution order updated: wave mesh deforms first, water/ship snap next, floaters/cannonball impacts after.
+- Water2 restored/kept as background ocean and changed to 50000x50000 at Y=-50 with lighter matching blue.
+- Ship remains locked; WASD moves/recycles Water1 tiles only.

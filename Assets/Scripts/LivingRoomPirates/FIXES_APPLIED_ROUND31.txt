@@ -1,0 +1,9 @@
+Round 31 changes:
+- Water1 visual grid defaults to 5x5 instead of 3x3.
+- Water1 visible tile size increased to 70m; scene Water1 can stay at scale 1,1,1.
+- Tile recycling now uses a forward-biased recycle window so more ocean exists ahead of the ship.
+- Tiles recycle a little earlier before reaching the edge.
+- Water tiles rotate/yaw to match the virtual ship heading while the ship/player remain locked.
+- Automatic base sailing speed reduced for comfort.
+- Ocean mesh generation lowered to 16x16 for Water1 tiles and 4x4 for huge Water2.
+- Graphics polish remains conservative: no custom inside-out primitive meshes, shadows/probes disabled for generated gameplay props.

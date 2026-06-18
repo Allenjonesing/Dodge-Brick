@@ -1,0 +1,21 @@
+Living Room Pirates round 3 package
+
+Requested fixes included:
+- Added WaterOneGrid3x3.cs. Attach/auto-attaches to Water1 and builds a seamless 3x3 grid.
+- OceanWaveMeshDeformer now uses world-space wave coordinates so all Water1 tiles wave together with no seams.
+- OceanWaveMeshDeformer values are now the source of truth. No useControllerSettings path.
+- Ship remains locked: OceanWorldController still forces visualShipRoot localPosition zero and localRotation identity every frame.
+- OceanWorldController samples the actual Water1 deformer for wave height instead of calm OceanStormSettings.
+- Added shipToOceanSnapHeightOffset on OceanWorldController. Negative values lower Water1 relative to the hull, making the stationary ship appear slightly raised.
+- Default shipToOceanSnapHeightOffset is -0.05f; legacy waterOneHeightOffset is left at 0f.
+- Water1 vertical follow remains instant by default (waterOneFollowStrength <= 0).
+- Added LivingRoomPiratesEditorAutoActivator.cs.
+  - In editor/no-headset debug play mode, it enables non-network systems, disables Photon/network components, builds Water1 grid, starts ocean entity spawning, animates anchor/sail/wheel placeholders, and periodically fires existing cannons where configured.
+  - It does not move or rotate the player's ship.
+- ShipStationNetwork defaults to networkingDisabled=true and returns before Photon sends.
+- Debug bootstrap now adds LivingRoomPiratesEditorAutoActivator automatically.
+
+Inspector notes:
+- Put desired wave values directly on Water1's OceanWaveMeshDeformer.
+- Put ship/ocean gap on OceanWorldController.shipToOceanSnapHeightOffset. Slightly negative means the ship appears raised.
+- Set WaterOneGrid3x3.tileSize if auto-detection guesses the wrong tile spacing.

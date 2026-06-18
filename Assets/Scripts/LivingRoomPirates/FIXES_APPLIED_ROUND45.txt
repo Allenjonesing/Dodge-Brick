@@ -1,0 +1,8 @@
+Round 45
+- Fixed wheel/capstan runaway: hand angle now measured in stable ship/debug-root space, not wheel-local rotating space.
+- Cannonball size reduced ~20%.
+- Removed green load flash; loaded state remains physical/indicator based.
+- Cannon load-zone indicator now appears only while holding a cannonball.
+- Ammo pile remains hoverable as the infinite cannonball source.
+- Sail cleat indicator appears while holding sail rope.
+- Added multiple hand-over-hand sail rope grips.

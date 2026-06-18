@@ -1,0 +1,7 @@
+Round 59 fixes:
+- Added fail-safe visible deck and rail frame from SurfaceDebug path so the headset view cannot show only floating stations when BoundaryShipGenerator deck path fails or is hidden.
+- Added independent per-hand physical grab state through LrpVrHandInteractionFallback -> LrpXrInteractableBridge -> LrpDebugStationButton -> LivingRoomPiratesSurfaceDebugSandbox.
+- Cannonballs are now per-hand objects, not one shared _heldCannonball. Left and right hands can hold, throw, load, or drop separate cannonballs.
+- Wheel, sail rope, and anchor capstan now use an active driver hand so grabbing a second knob/rope segment transfers control without teleporting from the first hand's start angle.
+- Cannonball load-zone indicators now show if any hand is holding a cannonball.
+- Sail release logic now only drops open/full if no other hand is still holding the rope.

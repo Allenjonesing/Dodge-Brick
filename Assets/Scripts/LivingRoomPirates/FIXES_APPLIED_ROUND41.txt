@@ -1,0 +1,1 @@
+Round 41: Fixed compile error by removing obsolete rayDistance assignment from LivingRoomPiratesPrimitiveSceneInstaller. Direct hand-only interaction remains enabled; ray/laser gameplay remains disabled.

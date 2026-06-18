@@ -1,0 +1,25 @@
+ROUND 57 - Ship generation + interaction direction fixes
+
+Primary fix:
+- Delayed boundary startup now generates the boundary-sized deck/ship first.
+- Surface debug stations are rebuilt only after BoundaryShipGenerator finishes, because BoundaryShipGenerator clears shipGeneratedRoot during RegenerateShip.
+- PrimitiveSceneInstaller now keeps LivingRoomPiratesSurfaceDebugSandbox disabled until delayed startup enables and rebuilds it.
+
+Layout fixes:
+- Player center is kept clearer.
+- Mast/sail rig moved forward center.
+- Helm moved forward center, behind the mast.
+- Anchor/capstan and tools shifted behind the player.
+- Placeholder deck surface made more visible and still aligned near world Y=0.
+
+Interaction fixes:
+- Steering wheel hand-angle sign reversed so clockwise hand motion rotates wheel clockwise.
+- Anchor capstan hand-angle sign reversed.
+- Sail behavior reversed: released/untied rope now opens sail instead of closing it; pulling down reefs/closes relative to the current percent.
+- Hammer is now visibly hammer-shaped with handle + head, gets a Rigidbody, follows hand rotation from hand motion, and restores physics on drop.
+- Manual cannonballs are capped at 5 active spawned balls; oldest balls recycle instead of allowing infinite pileup.
+- Spawning a new cannonball no longer immediately destroys the previous held/dropped cannonball.
+
+Not solved yet:
+- Full independent two-hand rope/cannonball state is still approximate because current fallback bridge does not pass a stable per-hand ID into the sandbox.
+- Next step should be a proper per-hand grab state model for rope segments, cannonballs, hammer, wheel knobs, and capstan handles.

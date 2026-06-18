@@ -1,0 +1,4 @@
+Round 65: Fixed sign text rendering.
+- Replaced GUI/Text Shader use on wooden/debug signs with depth-tested font-atlas cutout material.
+- Prevents giant black atlas/block artifacts and stops sign text from drawing through ship geometry.
+- Applied same depth-safe TextMesh material to the small instruction signs and reusable LrpWoodenSign signs.

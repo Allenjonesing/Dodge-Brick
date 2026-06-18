@@ -1,0 +1,7 @@
+Round 18
+- Added AuthoritativeOceanSurface on scene-authored Water1 as the single source of truth for snap/surface height.
+- OceanWorldController now resolves snap from AuthoritativeOceanSurface instead of rendered-vertex sampling or old controller settings.
+- SurfaceFloatFollower snaps objects to OceanWorldController.SampleHeight, which now uses AuthoritativeOceanSurface.
+- Debug floaters are moved horizontally by the sandbox conveyor once, then snapped vertically to the same surface.
+- Water2 uses the same material as Water1 where possible, not a separate darker blue.
+- Water1/Water2 are still scene-authored only; no water planes are instantiated.

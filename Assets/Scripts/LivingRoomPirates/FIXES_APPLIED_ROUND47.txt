@@ -1,0 +1,6 @@
+Round 47
+- Inverted the steering-to-virtual-heading sign so left steering no longer appears as right turn.
+- Reasserted one authoritative heading: Water1 grid yaw and treadmill velocity use the same virtual heading.
+- Generated debris is forcibly unparented and has individual SurfaceFloatFollower conveyor motion disabled; horizontal debris movement is handled only by the sandbox treadmill step.
+- Debris remains snapped vertically to Water1 surface while staying in ocean/world space.
+- Wake ripple spawn interval increased so trail marks are more spaced out in time.

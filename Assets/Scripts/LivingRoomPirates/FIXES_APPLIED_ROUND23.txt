@@ -1,0 +1,10 @@
+Round 23 polish pass
+- Ship rails now use a small inset from the already-safe usable Guardian rectangle so rail posts stay inside the play boundary.
+- Station origins are clamped inside the rail line; contents should no longer spill outside the rail envelope.
+- Station scale is now VR-readable but bounded: larger ships get a slight scale-up, smaller ship classes shrink station layout instead of breaking the deck.
+- Primitive debug station layout auto-fits to the generated ship size, while still allowing large ships to feel more usable in VR.
+- Cannons are modestly enlarged for readability, kept well under 2x scale.
+- Debug IMGUI overlay is hidden by default; keyboard controls still work and L toggles the overlay.
+- Added extra rigging ropes attached from mast/yard toward rail-area attachment points.
+- Added reflection-based XR Simple Interactable support when XR Interaction Toolkit is present, without adding a hard compile dependency.
+- Removed nonfunctional decorative spyglass/treasure spawns from generated station layouts until real gameplay is added.

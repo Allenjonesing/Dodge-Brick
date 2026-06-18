@@ -1,0 +1,12 @@
+Round 40
+- Reworked VR interactions from instant button toggles to direct hand-grab begin/drag/release mechanics.
+- Removed ray/laser fallback interaction path; gameplay is direct hand proximity only.
+- Steering wheel knobs now drive wheel angle from hand motion instead of spinning on grab.
+- Sail rope now raises sail by pulling down; releasing away from cleat drops sail, releasing at cleat holds current percent.
+- Anchor capstan now raises/lowers by hand rotation and affects movement continuously.
+- Cannonballs now spawn into hand from ammo source, follow the hand, load only when released near breech load zone, otherwise fall.
+- Cannon fuse rope now fires only after being pulled past a threshold, not on initial grab.
+- Added universal green/blue hover/grab indicators.
+- Dinghy/small layouts use one modest bow cannon and one ammo pile.
+- Moved mast back to center and made it taller so the sail is above the player view.
+- Added small wooden instruction signs on the ship.

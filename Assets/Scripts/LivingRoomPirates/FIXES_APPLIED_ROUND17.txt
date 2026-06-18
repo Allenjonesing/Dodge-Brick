@@ -1,0 +1,8 @@
+Round 17 changes:
+- Water1 and Water2 are no longer instantiated by LivingRoomPiratesPrimitiveSceneInstaller.
+- Installer now requires active scene objects named exactly Water1 and Water2.
+- Missing Water1 logs an error and aborts instead of creating a replacement.
+- Missing Water2 logs a warning and disables the background ocean instead of creating one.
+- Existing Water1 is repaired with deformer/grid/hotkeys only; it remains the source of truth.
+- Existing Water2 is made huge/deep and colored exactly like Water1.
+- Legacy LobbyOceanBootstrap is now a no-op so it cannot create a second ocean controller/root.

@@ -1,0 +1,10 @@
+Round 71 fixes:
+- Rebased from v70/v66 visual line; did not reuse v68/v69 material resolver changes.
+- Material resolver now prefers Assets/Materials by exact name in Editor and still uses Resources/loaded-material lookup on Quest.
+- Ropes/sheets/fuses use rope material instead of accidentally resolving to wood/metal.
+- Boundary retry window increased and stationary-sized Quest bounds are not accepted as roomscale.
+- Boundary detection order favors OVR PlayArea/OuterBoundary before XRInputSubsystem.
+- Helm/capstan visual/control direction signs flipped to match hand rotation better.
+- Hammer grip applies a 90-degree rotation offset while held.
+- Sheets are now several grabbable rope segments per side, like the main sail rope.
+- Sail visual is top-anchored: it drops downward from the yard as sailPercent opens.

@@ -1,0 +1,8 @@
+Round 9:
+- Added Demo/LivingRoomPiratesPrimitiveSceneInstaller.cs.
+- The installer runs automatically on Play and creates/repairs the Lobby scene using primitives only.
+- Creates LivingRoomPiratesRoot, shipGeneratedRoot, boundaryDebugRoot, OceanWorldRoot, Water1, Water2.
+- Assigns OceanWorldController, BoundaryShipGenerator, WaterOneGrid3x3, OceanWaveMeshDeformer, OceanWavePresetHotkeys, EditorAutoActivator.
+- Leaves generator prefab slots null so BoundaryShipGenerator uses its built-in primitive placeholders.
+- Adds primitive cannon behavior/fire points/cannonball prefab to generated cannon placeholders.
+- Disables Photon/network behaviours in-scene for this debug/offline phase.

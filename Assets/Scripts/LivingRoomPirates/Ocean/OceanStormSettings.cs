@@ -55,7 +55,7 @@ public class OceanStormSettings
             default:
                 return new OceanStormSettings
                 {
-                    waveHeight = 2.4f,
+                    waveHeight = 4.14f,
                     waveScale = 0.022f,
                     waveSpeed = 0.045f,
                     secondaryBlend = 0.55f,

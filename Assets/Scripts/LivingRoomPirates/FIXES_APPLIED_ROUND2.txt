@@ -1,0 +1,11 @@
+Round 2 fixes applied:
+
+1. Removed OceanWaveMeshDeformer.useControllerSettings entirely. Water1 now always uses the values assigned on OceanWaveMeshDeformer itself.
+2. LobbyOceanBootstrap and ShipStormMotionController no longer force controller-driven waves.
+3. OceanWorldController no longer moves, bobs, pitches, rolls, or rotates the ship visual root. The ship is locked at local position zero and identity rotation every frame.
+4. Old keyboard steering/travel code is neutralized so A/D cannot rotate the ocean/ship and W/S cannot drift it.
+5. OceanWorldRoot rotation is locked to identity.
+6. Water2 rotation is locked to identity.
+7. Water1 vertical follow now samples the actual OceanWaveMeshDeformer on Water1, not OceanStormSettings. This makes the gap correction match the visible mesh deformation.
+8. Water1 vertical follow is immediate by default (follow strength 0) and waterOneHeightOffset is 0, so the water surface is kept at the bottom of the generated ship instead of lagging behind.
+9. Legacy WaterPlaneWaveDeformer default heightAmplitude raised to 4.14f so the old component is not secretly calm if still present.

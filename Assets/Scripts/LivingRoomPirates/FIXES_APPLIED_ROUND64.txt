@@ -1,0 +1,1 @@
+Round 64: sign readability pass. Debug signs now use smaller TextMesh settings similar to small instruction signs, disable through-wall/backside overlay by default, disable double-sided text, tighten debug body lines, and reduce manual sign font size.

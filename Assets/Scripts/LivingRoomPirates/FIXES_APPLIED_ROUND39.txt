@@ -1,0 +1,1 @@
+Round 39: Added input-driven VR hand fallback based on XR grip/trigger and hand/controller transforms. Station handles now respond to direct proximity or red laser raycast even when XR Interaction Toolkit events are not wired.

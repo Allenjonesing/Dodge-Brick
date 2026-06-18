@@ -1,0 +1,6 @@
+Round 50 fixes:
+- Replaced Water1 tile movement with a deterministic virtual-ocean-position model.
+- Water1 tiles no longer accumulate local motion; they are placed from ocean coordinates relative to virtual ship position.
+- The wave coordinate offset now follows the same virtual ship position, so the visible wave map moves with the treadmill.
+- Debris no longer uses parent/ship-relative movement or manual conveyor shove. Each debris item owns a fixed ocean-space coordinate and renders relative to virtual ship position/heading.
+- Wake ripples now behave like temporary ocean-space marks instead of fake trailing UI: they spawn at the stern, stay in ocean coordinates, snap to the surface, and fade.
